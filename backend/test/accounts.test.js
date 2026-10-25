@@ -54,3 +54,17 @@ test('Dulo rollback restores collections, hides 2Embed titles and never fetches 
  globalThis.fetch=async()=>{throw new Error('Rollback must not fetch provider metadata')};
  try{const response=await call(env,'/api/get_links.json',null,c);assert.equal(response.status,200);const data=await response.json();assert.equal(data.catalogueSource,'dulo');assert.deepEqual(data.warnings,[]);assert.equal(data.items.filter(x=>x.id.startsWith('dulo-library-')).length,10);assert.ok(data.items.some(x=>x.id==='manual-dulo'));assert.ok(data.items.some(x=>x.id==='news'));assert.ok(!data.items.some(x=>['manual-2embed','imported-2embed'].includes(x.id)));assert.equal(db.prepare('SELECT count(*) AS n FROM content WHERE id IN (?,?)').get('manual-2embed','imported-2embed').n,2)}finally{globalThis.fetch=original;db.close()}
 });
+
+test('live Payfast checkout permits its hosted-payment redirect while sandbox stays isolated',async()=>{
+ const {db,env}=fixture();env.PAYFAST_SANDBOX='false';
+ try{
+  const activation=await(await call(env,'/api/activation/start',{email:'checkout-policy@example.com'})).json();
+  const live=await worker.fetch(new Request(activation.checkoutUrl),env);assert.equal(live.status,200);
+  const policy=live.headers.get('Content-Security-Policy');
+  assert.match(policy,/form-action https:\/\/www\.payfast\.co\.za https:\/\/payment\.payfast\.io;/);
+  assert.match(policy,/default-src 'none'/);assert.match(policy,/frame-ancestors 'none'/);assert.ok(!policy.includes('*'));
+  const html=await live.text();assert.match(html,/method="POST" action="https:\/\/www\.payfast\.co\.za\/eng\/process"/);assert.match(html,/name="amount" value="399\.00"/);
+  env.PAYFAST_SANDBOX='true';const sandbox=await worker.fetch(new Request(activation.checkoutUrl),env);
+  assert.match(sandbox.headers.get('Content-Security-Policy'),/form-action https:\/\/sandbox\.payfast\.co\.za;/);assert.ok(!sandbox.headers.get('Content-Security-Policy').includes('payment.payfast.io'));
+ }finally{db.close()}
+});
