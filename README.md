@@ -6,11 +6,13 @@ Native Kotlin Android TV shell plus a Cloudflare Worker, D1 activation database,
 
 https://vert-tv.mahlangu843.workers.dev
 
+Test APK download: https://vert-tv.mahlangu843.workers.dev/downloads/vert-tv-debug.apk
+
 D1 and private R2 are provisioned and migrations applied. Admin authentication configuration and Payfast credentials are still required. Cloudflare returned `Access is not enabled`; enable Zero Trust / Access in the account dashboard before configuring an Access application.
 
 ## Status
 
-Source is implemented. Android compilation and emulator/device verification require JDK 17 and Android SDK 35. Payfast must be configured and tested in sandbox before accepting payments. No production credentials are checked in. A browser test URL serves the backend/landing page and admin studio; it cannot run a native Android APK.
+Android debug APK compiled successfully in GitHub Actions (run 40211654811). Device/emulator playback and Payfast end-to-end verification are still pending. Local Android compilation requires JDK 17 and Android SDK 35. Payfast must be configured and tested in sandbox before accepting payments. No production credentials are checked in. A browser test URL serves the backend/landing page and admin studio; it cannot run a native Android APK.
 
 ## Android Studio / VS Code
 
@@ -44,6 +46,8 @@ npx wrangler secret put PAYFAST_PASSPHRASE
 npm test
 npx wrangler deploy
 ```
+
+The APK download asset is intentionally ignored by Git. Before deploying from a clean checkout, build/download the debug APK and copy it to `backend/public/downloads/vert-tv-debug.apk` to preserve the homepage download link. The currently deployed APK SHA-256 is `e71365ad87c1b3f088dcaaa6bbe87b69fa2213864794d6a9fc04da3e1db8d9f9`.
 
 Wrangler returns your real public `https://vert-tv.<subdomain>.workers.dev` link. Open `/` for the landing page, `/api/health` for health, and `/admin` for the admin studio. Do not invent a hostname before deployment. For local development use `.dev.vars` copied from `.dev.vars.example`, local D1 migrations (`npx wrangler d1 migrations apply vert-tv --local`) and `npm run dev`.
 
