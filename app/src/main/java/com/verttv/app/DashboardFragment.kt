@@ -12,30 +12,14 @@ import kotlinx.coroutines.launch
 
 data class ContentItem(val title: String, val category: String, val url: String, val id: String = "", val media: org.json.JSONObject? = null)
 class DashboardFragment : BrowseSupportFragment() {
-    private var catalogueType="movie"
-    private var catalogueQuery=""
-    private var cataloguePage=0
-    private fun browse() {
-        val context=requireContext()
-        val query=android.widget.EditText(context).apply { hint="Search titles, or leave empty for trending"; setText(catalogueQuery); setSingleLine(true) }
-        android.app.AlertDialog.Builder(context).setTitle("Browse Vert TV").setView(query)
-            .setPositiveButton("Movies") { _, _ -> catalogueType="movie";catalogueQuery=query.text.toString().trim();cataloguePage=1;load() }
-            .setNeutralButton("TV shows") { _, _ -> catalogueType="tv";catalogueQuery=query.text.toString().trim();cataloguePage=1;load() }
-            .setNegativeButton("Home") { _, _ -> cataloguePage=0;load() }.show()
-    }
-
     override fun onActivityCreated(state: Bundle?) {
         super.onActivityCreated(state)
         title = "VERT TV"
         headersState = HEADERS_ENABLED
         brandColor = Color.rgb(16,31,48)
-        setOnSearchClickedListener { browse() }
+        setOnSearchClickedListener { load() }
         setOnItemViewClickedListener { _, item, _, _ ->
-            if(item is ContentItem && item.url == "vert:browse") { browse()
-            } else if(item is ContentItem && item.url == "vert:next") { cataloguePage++;load()
-            } else if(item is ContentItem && item.url == "vert:previous") { cataloguePage--;load()
-            } else if(item is ContentItem && item.url == "vert:home") { cataloguePage=0;load()
-            } else if(item is ContentItem && item.url == "vert:logout") {
+            if(item is ContentItem && item.url == "vert:logout") {
                 lifecycleScope.launch {
                     val api = Api(requireContext())
                     try { api.request("/api/auth/logout", org.json.JSONObject()) } catch (_: Exception) {}
@@ -50,9 +34,7 @@ class DashboardFragment : BrowseSupportFragment() {
     }
     private fun load() { lifecycleScope.launch {
         try {
-            val path=if(cataloguePage==0) "/api/get_links.json" else "/api/catalogue?mediaType=$catalogueType&mode=${if(catalogueQuery.isBlank()) "trending" else "search"}&query=${android.net.Uri.encode(catalogueQuery)}&page=$cataloguePage"
-            val result=Api(requireContext()).request(path)
-            val items=result.getJSONArray("items")
+            val items = Api(requireContext()).request("/api/get_links.json").getJSONArray("items")
             val groups = linkedMapOf<String, MutableList<ContentItem>>()
             for(i in 0 until items.length()) {
                 val x = items.getJSONObject(i)
@@ -65,17 +47,11 @@ class DashboardFragment : BrowseSupportFragment() {
                 entry.value.forEach { cards.add(it) }
                 rows.add(ListRow(HeaderItem(index.toLong(), entry.key), cards))
             }
-            val navigation=ArrayObjectAdapter(CardPresenter())
-            navigation.add(ContentItem("Search movies & shows", "Browse", "vert:browse"))
-            if(cataloguePage>1) navigation.add(ContentItem("Previous page", "Browse", "vert:previous"))
-            if(cataloguePage>0 && cataloguePage<result.optInt("totalPages",1)) navigation.add(ContentItem("Next page", "Browse", "vert:next"))
-            if(cataloguePage>0) navigation.add(ContentItem("Home & my library", "Browse", "vert:home"))
-            rows.add(ListRow(HeaderItem(9998L,"Browse"),navigation))
             val account = ArrayObjectAdapter(CardPresenter())
             account.add(ContentItem("Sign out", "Account", "vert:logout"))
             rows.add(ListRow(HeaderItem(9999L, "Account"), account))
             adapter = rows
-            title = if(cataloguePage>0) "VERT TV • ${if(catalogueType=="tv") "TV shows" else "Movies"} • Page $cataloguePage" else if((result.optJSONArray("warnings")?.length() ?: 0) > 0) "VERT TV • Some titles unavailable; select search to retry" else "VERT TV"
+            title = if(groups.isEmpty()) "VERT TV • Your library is coming soon" else "VERT TV"
         } catch(e: Exception) { title = "Connection failed • Select search to retry" }
     } }
 }

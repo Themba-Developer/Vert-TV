@@ -44,3 +44,13 @@ test('live paid catalogue replaces Dulo reversibly and supports search and episo
   globalThis.fetch=async()=>new Response('Unavailable',{status:503});const failed=await(await call(env,'/api/get_links.json',null,c)).json();assert.equal(failed.warnings.length,2);assert.ok(failed.items.some(x=>x.id==='news'));assert.ok(failed.items.every(x=>!x.url.includes('dulo.mov')));
  } finally {globalThis.fetch=original;db.close()}
 });
+test('Dulo rollback restores collections, hides 2Embed titles and never fetches its catalogue',async()=>{
+ const {db,env}=fixture();env.CATALOGUE_SOURCE='dulo';const original=globalThis.fetch;
+ const login=await call(env,'/api/auth/signup',{email:'vertcorpgroup@gmail.com',password:pass,setupCode:'private-setup'}),c=cookie(login);
+ db.prepare('INSERT INTO content(id,title,category,url) VALUES(?,?,?,?)').run('manual-dulo','Movie Box','Library','https://dulo.mov/');
+ db.prepare('INSERT INTO content(id,title,category,url) VALUES(?,?,?,?)').run('manual-2embed','Test movie','Movies','https://www.2embed.cc/embed/123');
+ db.prepare('INSERT INTO content(id,title,category,url,metadata_json) VALUES(?,?,?,?,?)').run('imported-2embed','Imported movie','Movies','https://example.com/movie',JSON.stringify({provider:'2embed',type:'movie',id:'123'}));
+ db.prepare('INSERT INTO content(id,title,category,url) VALUES(?,?,?,?)').run('news','News','Live','https://example.com/news');
+ globalThis.fetch=async()=>{throw new Error('Rollback must not fetch provider metadata')};
+ try{const response=await call(env,'/api/get_links.json',null,c);assert.equal(response.status,200);const data=await response.json();assert.equal(data.catalogueSource,'dulo');assert.deepEqual(data.warnings,[]);assert.equal(data.items.filter(x=>x.id.startsWith('dulo-library-')).length,10);assert.ok(data.items.some(x=>x.id==='manual-dulo'));assert.ok(data.items.some(x=>x.id==='news'));assert.ok(!data.items.some(x=>['manual-2embed','imported-2embed'].includes(x.id)));assert.equal(db.prepare('SELECT count(*) AS n FROM content WHERE id IN (?,?)').get('manual-2embed','imported-2embed').n,2)}finally{globalThis.fetch=original;db.close()}
+});

@@ -37,3 +37,7 @@ Paid/exempt accounts can browse/search paginated results at `GET /api/catalogue?
 Provider metadata is cached for five minutes. Failed home feeds produce visible warnings and preserve custom content; search errors allow retry. There is no silent fallback to Dulo. Identical availability to Dulo and actual stream playback have not been established.
 
 Desktop and 390px mobile browser checks passed using real public catalogue metadata and mocked player media: home, movie search, pagination, TV search, complete season choices, episode opening and return to home. Actual movie playback remains a manual check.
+
+## Rollback to Dulo
+
+The owner reported nonworking playback and limited titles and requested rollback. Production now uses `CATALOGUE_SOURCE=dulo`: Dulo collections and manual Dulo links are visible again; 2Embed metadata imports and player URLs are hidden from customer responses without deleting admin records. Live 2Embed trending/search controls are removed from web and Android. Other custom content and uploads remain. The optional admin provider tooling is retained.

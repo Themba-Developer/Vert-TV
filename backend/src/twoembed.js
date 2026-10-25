@@ -34,3 +34,5 @@ export function defaultTVSeason(item){return item.seasons?.find(s=>s.number===1)
 
 export function catalogueItem(media){return {id:'2embed-live-'+media.type+'-'+media.id,title:media.title,category:media.type==='tv'?'TV Shows':'Movies',kind:'link',url:buildTwoEmbedURL({mediaType:media.type,mediaId:media.id,season:defaultTVSeason(media),episode:1}),media};}
 export function isDuloURL(value){try{const host=new URL(value).hostname;return host==='dulo.mov'||host.endsWith('.dulo.mov')}catch{return false}}
+
+export function isTwoEmbedURL(value){try{const host=new URL(value).hostname;return host==='2embed.cc'||host.endsWith('.2embed.cc')||host==='2embed.skin'||host.endsWith('.2embed.skin')}catch{return false}}

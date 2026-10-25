@@ -1,4 +1,4 @@
-import { buildTwoEmbedURL, twoEmbedCatalogue, twoEmbedMetadata, twoEmbedSeason, mediaID, episodeNumber, defaultTVSeason, readMedia, catalogueItem, isDuloURL } from './twoembed.js';
+import { buildTwoEmbedURL, twoEmbedCatalogue, twoEmbedMetadata, twoEmbedSeason, mediaID, episodeNumber, defaultTVSeason, readMedia, catalogueItem, isDuloURL, isTwoEmbedURL } from './twoembed.js';
 import { buildVidSrcURL, checkVidSrcFeeds } from './vidsrc.js';
 import { ACTIVATION_AMOUNT_CENTS, formatAmount, moneyToCents } from './billing.js';
 import { authRoute, currentUser, originCheck, ADMIN_EMAILS } from './auth.js';
@@ -181,7 +181,7 @@ async function handle(request,env) {
  if(path==='/api/get_links.json') {
   await device(request,env,true);
   const {results}=await env.DB.prepare('SELECT * FROM content WHERE published=1 ORDER BY CASE WHEN metadata_json IS NOT NULL THEN 0 ELSE 1 END,category,title').all();
-  let items=await Promise.all(results.filter(x=>env.CATALOGUE_SOURCE!=='2embed'||!isDuloURL(x.url)).map(async x=>{
+  let items=await Promise.all(results.filter(x=>env.CATALOGUE_SOURCE==='2embed'?!isDuloURL(x.url):env.CATALOGUE_SOURCE==='dulo'?readMedia(x.metadata_json)?.provider!=='2embed'&&!isTwoEmbedURL(x.url):true).map(async x=>{
    if(!x.object_key) return {id:x.id,title:x.title,category:x.category,url:x.url,kind:x.kind||'link',media:readMedia(x.metadata_json)};
    const access=token(); await env.DB.prepare('INSERT INTO media_tickets(ticket_hash,content_id,expires_at) VALUES(?,?,?)').bind(hash(access),x.id,Date.now()+6*3600000).run();
    return {id:x.id,title:x.title,category:x.category,url:`${env.PUBLIC_BASE_URL}/watch/${x.id}?ticket=${access}`,kind:'link'};

@@ -19,19 +19,6 @@ class EpisodeActivity : FragmentActivity() {
         super.onCreate(state)
         val contentId = intent.getStringExtra("id") ?: return finish()
         val details = try { JSONObject(intent.getStringExtra("media") ?: "{}") } catch (_: Exception) { JSONObject() }
-        if(contentId.startsWith("2embed-live-")) {
-            val loading=TextView(this).apply { text="Loading show…";textSize=26f;setTextColor(Color.WHITE);setPadding(64,64,64,64) }
-            setContentView(loading)
-            lifecycleScope.launch {
-                try {
-                    val item=Api(this@EpisodeActivity).request("/api/catalogue/tv/${android.net.Uri.encode(details.getString("id"))}")
-                    showEpisodes(contentId,item.getJSONObject("media"))
-                } catch(e: kotlinx.coroutines.CancellationException) { throw e }
-                catch(e: Exception) { loading.text="${e.message}\nPress Back to return and retry." }
-            }
-        } else showEpisodes(contentId,details)
-    }
-    private fun showEpisodes(contentId: String, details: JSONObject) {
         val seasons = details.optJSONArray("seasons")?.takeIf { it.length() > 0 }
             ?: JSONArray().put(JSONObject().put("number", 1).put("name", "Season 1"))
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(64,40,64,40); setBackgroundColor(Color.rgb(7,12,20)) }
