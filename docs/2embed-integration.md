@@ -35,3 +35,5 @@ The source documentation supplied by the owner is https://www.2embed.skin/ . The
 Paid/exempt accounts can browse/search paginated results at `GET /api/catalogue?mediaType=movie|tv&mode=trending|search&query=...&page=1`. This does not write titles to D1. Web controls and Android's Browse row/search button expose movies, TV shows and pagination. Clicking a live TV title loads full metadata via `/api/catalogue/tv/{id}` before choosing seasons; `/api/content/2embed-live-tv-{id}/episodes` checks the selected season against provider metadata. Admin-curated imports still work independently.
 
 Provider metadata is cached for five minutes. Failed home feeds produce visible warnings and preserve custom content; search errors allow retry. There is no silent fallback to Dulo. Identical availability to Dulo and actual stream playback have not been established.
+
+Desktop and 390px mobile browser checks passed using real public catalogue metadata and mocked player media: home, movie search, pagination, TV search, complete season choices, episode opening and return to home. Actual movie playback remains a manual check.
