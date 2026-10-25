@@ -38,13 +38,15 @@ async function handle(request,env) {
   if(path==='/api/admin/content' && request.method==='GET') return json({items:(await env.DB.prepare('SELECT * FROM content ORDER BY created_at DESC').all()).results});
   if(path==='/api/admin/content' && request.method==='POST') {
    const b=await request.json(); if(!b.title?.trim() || !b.category?.trim() || !httpsURL(b.url)) fail(400,'Title, category and HTTPS URL required');
-   const id=crypto.randomUUID(); await env.DB.prepare('INSERT INTO content(id,title,category,url) VALUES(?,?,?,?)').bind(id,b.title.trim().slice(0,200),b.category.trim().slice(0,100),b.url).run(); return json({id},201);
+   const kind=b.kind??'link';if(!['link','collection'].includes(kind))fail(400,'Choose a single title or library collection');
+   const id=crypto.randomUUID(); await env.DB.prepare('INSERT INTO content(id,title,category,url,kind) VALUES(?,?,?,?,?)').bind(id,b.title.trim().slice(0,200),b.category.trim().slice(0,100),b.url,kind).run(); return json({id},201);
   }
   if(path.startsWith('/api/admin/content/') && request.method==='PUT') {
    const b=await request.json(), id=path.split('/').pop();
    const current=await env.DB.prepare('SELECT * FROM content WHERE id=?').bind(id).first(); if(!current) fail(404,'Title not found');
    if(!b.title?.trim() || !b.category?.trim() || (!current.object_key && !httpsURL(b.url))) fail(400,'Title, category and HTTPS URL required');
-   await env.DB.prepare('UPDATE content SET title=?,category=?,url=? WHERE id=?').bind(b.title.trim().slice(0,200),b.category.trim().slice(0,100),current.object_key?null:b.url,id).run();
+   const kind=current.object_key?'link':b.kind??current.kind??'link';if(!['link','collection'].includes(kind))fail(400,'Choose a single title or library collection');
+   await env.DB.prepare('UPDATE content SET title=?,category=?,url=?,kind=? WHERE id=?').bind(b.title.trim().slice(0,200),b.category.trim().slice(0,100),current.object_key?null:b.url,kind,id).run();
    return json({ok:true});
   }
   if(path.startsWith('/api/admin/content/') && request.method==='DELETE') { await env.DB.prepare('DELETE FROM content WHERE id=?').bind(path.split('/').pop()).run(); return json({ok:true}); }
@@ -135,9 +137,9 @@ async function handle(request,env) {
   await device(request,env,true);
   const {results}=await env.DB.prepare('SELECT * FROM content WHERE published=1 ORDER BY category,title').all();
   const items=await Promise.all(results.map(async x=>{
-   if(!x.object_key) return {id:x.id,title:x.title,category:x.category,url:x.url};
+   if(!x.object_key) return {id:x.id,title:x.title,category:x.category,url:x.url,kind:x.kind||'link'};
    const access=token(); await env.DB.prepare('INSERT INTO media_tickets(ticket_hash,content_id,expires_at) VALUES(?,?,?)').bind(hash(access),x.id,Date.now()+6*3600000).run();
-   return {id:x.id,title:x.title,category:x.category,url:`${env.PUBLIC_BASE_URL}/watch/${x.id}?ticket=${access}`};
+   return {id:x.id,title:x.title,category:x.category,url:`${env.PUBLIC_BASE_URL}/watch/${x.id}?ticket=${access}`,kind:'link'};
   })); return json({items});
  }
  const media=path.match(/^\/(watch|media)\/([^/]+)$/);

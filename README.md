@@ -81,10 +81,18 @@ An hourly scheduled handler removes expired playback/checkout tickets, sessions 
 
 ## Verification
 
-`cd backend && npm test` runs 30 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
+`cd backend && npm test` runs 32 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
 
 Current verification: Android version 1.3 compiled in GitHub Actions run 40222134457. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
 
 Current APK SHA-256: `40ea3dfe24ed4b03134db43952aeb09bc135c868ae8f964f3b24264531bcaa95`.
 
 The browser player fills the viewport, requests browser fullscreen on selection where supported, and shows only a small Back to library overlay. The Back overlay returns to the library and stops the embedded page; Escape and parent-page Back navigation are also handled. The iframe sandbox blocks popup windows and top-level navigation; source-site branding remains controlled by that site.
+
+## Linked library collections
+
+The admin library supports `kind=collection` entries as well as ordinary links. Migration 0004 adds ten editable collection tiles pointing to Dulo's published Movies, TV Shows, animation shows, animated movies, Anime, Family Movies, Documentary, Action & Adventure, Comedy and Live TV sections. The source navigation/genre index is https://dulo.mov/genres/ . Category paths were checked on 2026-10-25; filter query parameters are preserved. Cartoons & Animation maps to `/shows/?shelf=genre-16`; this is a general animation category, not a kids-only filter.
+
+Collection tiles open the section directly in the existing edge-to-edge internal viewer. The upstream catalogue and its branding remain controlled by Dulo. No movie files or individual-title catalogue are copied. Existing Movie Box and News records are preserved. The admin can edit/delete these entries and add other providers using Entry type → Library collection. Ordinary title/website entries and R2 uploads continue working. Existing Android builds read the same endpoint and automatically receive the new collection links.
+
+The owner explicitly retained R199 activation for normal accounts; free access for the two reserved admin accounts is unchanged. The welcome `/` URL and separate `/app` URL are unchanged.
