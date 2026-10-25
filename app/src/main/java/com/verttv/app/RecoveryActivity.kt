@@ -41,7 +41,7 @@ class RecoveryActivity : FragmentActivity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         val api=Api(this);val setup=intent.getBooleanExtra("setup",false)
-        val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(64,40,64,40);setBackgroundColor(Color.rgb(7,12,20)) }
+        val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(64,40,64,40);setBackgroundColor(Color.rgb(9,8,13)) }
         fun text(value: String,size: Float=18f) { root.addView(TextView(this).apply { text=value;textSize=size;setTextColor(Color.WHITE);setPadding(0,12,0,12) }) }
         fun field(hintText: String,secret: Boolean): EditText {
             return EditText(this).apply { hint=hintText;isSingleLine=true;setTextColor(Color.WHITE);setHintTextColor(Color.LTGRAY);setBackgroundResource(R.drawable.focus_card)

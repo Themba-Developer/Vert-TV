@@ -14,7 +14,7 @@ class SettingsActivity : FragmentActivity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         val api=Api(this)
-        val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(64,40,64,40);setBackgroundColor(Color.rgb(7,12,20)) }
+        val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(64,40,64,40);setBackgroundColor(Color.rgb(9,8,13)) }
         fun text(value: String,size: Float=18f) { root.addView(TextView(this).apply { text=value;textSize=size;setTextColor(Color.WHITE);setPadding(0,14,0,10) }) }
         fun button(value: String)=Button(this).apply { text=value;isAllCaps=false;setBackgroundResource(R.drawable.focus_card);setTextColor(Color.WHITE);root.addView(this,LinearLayout.LayoutParams(-1,60).apply { topMargin=12 }) }
         fun password(label: String): EditText {

@@ -37,9 +37,9 @@ class MotionBackdropView @JvmOverloads constructor(context: Context, attrs: Attr
         paint.shader = null
         canvas.drawBitmap(artwork, null, RectF(x, y, x + w, y + h), paint)
         shade.shader = LinearGradient(0f, 0f, width.toFloat(), 0f,
-            intArrayOf(0xFA070C14.toInt(), 0xDE070C14.toInt(), 0x55070C14), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
+            intArrayOf(0xFA09080D.toInt(), 0xDE09080D.toInt(), 0x5509080D), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), shade)
-        shade.shader = LinearGradient(0f, height * 0.6f, 0f, height.toFloat(), 0x00070C14, 0xE6070C14.toInt(), Shader.TileMode.CLAMP)
+        shade.shader = LinearGradient(0f, height * 0.6f, 0f, height.toFloat(), 0x0009080D, 0xE609080D.toInt(), Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), shade)
     }
 }

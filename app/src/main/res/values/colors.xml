@@ -1,0 +1,6 @@
+<resources>
+ <color name="vert_accent">#FF9B24</color>
+ <color name="vert_accent_bright">#FFB550</color>
+ <color name="lb_default_search_color">#FF9B24</color>
+ <color name="lb_default_search_color_bright">#FFB550</color>
+</resources>

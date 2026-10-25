@@ -85,7 +85,7 @@ class DashboardFragment : BrowseSupportFragment() {
         super.onActivityCreated(state)
         title = "VERT TV"
         headersState = HEADERS_ENABLED
-        brandColor = Color.rgb(16,31,48)
+        brandColor = Color.rgb(45,30,18)
         setOnSearchClickedListener { search() }
         setOnItemViewClickedListener { _, item, _, _ ->
             if(item is ContentItem && item.id.isNotBlank()&&!item.url.startsWith("vert:")) lifecycleScope.launch {
@@ -160,8 +160,8 @@ class CardPresenter(private val onLove: ((ContentItem)->Unit)? = null) : Present
             isFocusable=true; isFocusableInTouchMode=true
             setMainImageDimensions(280,220)
             mainImageView.scaleType=android.widget.ImageView.ScaleType.CENTER_CROP
-            setBackgroundColor(Color.rgb(25,38,56))
-            setOnFocusChangeListener { _, focused -> setBackgroundColor(if(focused) Color.rgb(36,92,80) else Color.rgb(25,38,56)) }
+            setBackgroundColor(Color.rgb(27,23,32))
+            setOnFocusChangeListener { _, focused -> setBackgroundColor(if(focused) Color.rgb(97,60,20) else Color.rgb(27,23,32)) }
         }
         return CardHolder(card)
     }
