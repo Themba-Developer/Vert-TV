@@ -1,0 +1,22 @@
+{
+  "version": "2.3.0",
+  "versionCode": 14,
+  "minimumAndroid": "8.0",
+  "abis": [
+    "armeabi-v7a",
+    "arm64-v8a",
+    "x86",
+    "x86_64"
+  ],
+  "apkSha256": "93334fa44a0e391e4be427b8600938e098096d7b2ae6191a3518a89a721e5fab",
+  "signingCertificateSha256": "AC:A4:64:53:A5:5E:BC:3D:76:BB:4B:D3:2C:77:BD:44:16:D6:78:B9:68:01:CC:E1:2D:D9:6A:49:9D:8E:72:A9",
+  "bytes": 20323826,
+  "sourceCommit": "ca7a2cff3ec41af730fb591c0ed85179c69e6531",
+  "verificationRun": "https://github.com/Themba-Developer/Vert-TV/actions/runs/40242251986",
+  "buildType": "signed release",
+  "icon": {
+    "background": "#000000",
+    "foreground": "#FF9B24",
+    "mark": "V"
+  }
+}

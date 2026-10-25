@@ -85,9 +85,9 @@ An hourly scheduled handler removes expired playback/checkout tickets, sessions 
 
 `cd backend && npm test` runs 60 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
 
-Current verification: Android version 2.0 compiled in GitHub Actions run 40237073848. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
+Current verification: Android 2.3 signed universal APK verified in GitHub Actions run 40242251986. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
 
-Current APK SHA-256: `80ad12af0802153e270196c3aa6312493beaa9073724a58fbaeb3a61d70f8a4e`.
+Current APK SHA-256: `93334fa44a0e391e4be427b8600938e098096d7b2ae6191a3518a89a721e5fab`.
 
 The browser player fills the viewport, requests browser fullscreen on selection where supported, and shows only a small Back to library overlay. The Back overlay returns to the library and stops the embedded page; Escape and parent-page Back navigation are also handled. The iframe sandbox blocks popup windows and top-level navigation; source-site branding remains controlled by that site.
 
@@ -132,3 +132,17 @@ Dulo built-in title search is available in the active web library and Android 1.
 The library now includes a cinematic responsive layout, compact search with live Dulo results while typing, and Discover/Recent/Loved/Trending/New navigation. A top Settings dialog holds account details, security questions, authenticated password changes and sign-out. Recent tracks library entries opened from Vert TV; it cannot read per-movie playback inside Dulo collections. Loved and Recent are saved per account across devices. See `docs/library-experience.md`.
 
 Library verification: all 60 backend tests pass and Android 2.0 compiles. Live browser checks covered actual Dulo search suggestions, trending/new route selection, iframe cleanup, settings/recovery dialogs, password change/new login and saved Recent/Loved entries persisting across reload and password changes. Desktop and phone layouts were visually reviewed, including mobile admin navigation width. The temporary test account and its activity, sessions and recovery data were removed. No movie, payment or email was sent.
+
+## Native blocker, real catalogue and orange release
+
+Android 2.3 includes Brave adblock-rust 0.13.3, bundled EasyList/EasyPrivacy, daily/manual updates, network/service-worker blocking and top-level cosmetic rules. Checkout bypasses filtering. The signed APK contains ARM 32/64-bit and x86 32/64-bit libraries, uses 16KB alignment and targets Android 8+. Native dashboard entry shows actual Dulo movie posters in the filtered internal viewer, replacing the old default V-card grid. Native context persists through account/payment redirects.
+
+Install: https://vert-tv.mahlangu843.workers.dev/install (short alias `/tv`). Signed APK: https://vert-tv.mahlangu843.workers.dev/downloads/vert-tv.apk . The previous debug URL is a compatibility alias for the same signed release. Before deploying a clean checkout, download `vert-tv-release-apk` from the verified workflow and copy `app-release.apk` to both public APK paths. Release metadata/checksum are in `backend/public/downloads/vert-tv-release.json` and `vert-tv.apk.sha256`.
+
+The owner approved permanent signing. GitHub Actions holds its signing secrets; a permission-restricted private backup is in the ignored `.signing/` folder. Keep that folder backed up securely. An older test install may need one uninstall before installing the signed release. Later releases reuse this key and increase versionCode. Server accounts and activation remain intact.
+
+The shared orange palette matches Dulo's current controls: #FF9B24, #FFB550 highlights and warm charcoal surfaces. Welcome, account, admin, installer and native resources use matching accents/focus states. The native viewer removes the duplicate catalogue heading and uses internal fullscreen controls.
+
+Verification: 60 backend tests, 4 Rust-engine tests and the Android 35 x86_64 smoke test pass. The emulator verified JNI loading, request interception, payment bypass, TV launcher visibility and Secure/HttpOnly cookie handoff. CI verified four native ABIs, signatures and 16KB packaging. The release signer matches the approved certificate. Live phone/TV-sized browser checks confirmed actual Dulo posters and orange styling; temporary accounts/data were removed. No movie, email or payment was sent. Physical TV behaviour and individual media availability remain device/provider-dependent. See `docs/native-adblock.md`.
+
+Launcher branding is a solid black background with an opaque #FF9B24 V: adaptive launcher icon, fallback vector, black TV banner and matching web favicon. The signed 2.3 release preserves the approved signing certificate. Compiled icon geometry/colours, four-ABI packaging and the Android emulator smoke test were verified.
