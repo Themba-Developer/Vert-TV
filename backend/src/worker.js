@@ -20,7 +20,7 @@ function payfast(env) { if(!env.PAYFAST_MERCHANT_ID || !env.PAYFAST_MERCHANT_KEY
 async function handle(request,env) {
  const u=new URL(request.url), path=u.pathname;
  if(path.startsWith('/api/auth/')) return authRoute(request,env,path);
- if(['/login','/signup','/account','/app'].includes(path)) return env.ASSETS.fetch(new Request(new URL('/auth.html',u),request));
+ if(['/login','/signup','/account','/app'].includes(path)) return env.ASSETS.fetch(new Request(new URL('/auth',u),request));
  if(path==='/api/billing/checkout' && request.method==='POST') {
   originCheck(request);const user=await currentUser(request,env);if(!user)fail(401,'Please sign in');
   if(user.active||user.payment_exempt)return json({active:true});
@@ -34,7 +34,7 @@ async function handle(request,env) {
  if(path==='/api/health') return json({ok:true,service:'Vert TV',paymentsConfigured:!!(env.PAYFAST_MERCHANT_ID && env.PAYFAST_MERCHANT_KEY && env.PAYFAST_PASSPHRASE),paymentMode:env.PAYFAST_SANDBOX==='true'?'sandbox':'live'});
  if(path.startsWith('/api/admin/') || path==='/admin' || path.startsWith('/admin/')) {
   const owner=await admin(request,env); originCheck(request);
-  if(path==='/admin' || path==='/admin/') return env.ASSETS.fetch(new Request(new URL('/admin.html',u),request));
+  if(path==='/admin' || path==='/admin/') return env.ASSETS.fetch(new Request(new URL('/admin',u),request));
   if(path==='/api/admin/content' && request.method==='GET') return json({items:(await env.DB.prepare('SELECT * FROM content ORDER BY created_at DESC').all()).results});
   if(path==='/api/admin/content' && request.method==='POST') {
    const b=await request.json(); if(!b.title?.trim() || !b.category?.trim() || !httpsURL(b.url)) fail(400,'Title, category and HTTPS URL required');
