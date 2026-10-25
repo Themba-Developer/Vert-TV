@@ -27,7 +27,8 @@
   ],
   "vars": {
     "PUBLIC_BASE_URL": "https://vert-tv.mahlangu843.workers.dev",
-    "PAYFAST_SANDBOX": "false"
+    "PAYFAST_SANDBOX": "false",
+    "CATALOGUE_SOURCE": "2embed"
   },
   "triggers": {
     "crons": [

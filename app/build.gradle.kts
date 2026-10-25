@@ -6,8 +6,8 @@ android {
         applicationId = "com.verttv.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "1.5.0"
+        versionCode = 7
+        versionName = "1.6.0"
         buildConfigField("String", "API_BASE_URL", "\"${providers.gradleProperty("VERT_API_URL").getOrElse("https://yourdomain.com")}\"")
     }
     buildFeatures { buildConfig = true }

@@ -1,4 +1,4 @@
-import { buildTwoEmbedURL, twoEmbedCatalogue, twoEmbedMetadata, twoEmbedSeason, mediaID, episodeNumber, defaultTVSeason, readMedia } from './twoembed.js';
+import { buildTwoEmbedURL, twoEmbedCatalogue, twoEmbedMetadata, twoEmbedSeason, mediaID, episodeNumber, defaultTVSeason, readMedia, catalogueItem, isDuloURL } from './twoembed.js';
 import { buildVidSrcURL, checkVidSrcFeeds } from './vidsrc.js';
 import { ACTIVATION_AMOUNT_CENTS, formatAmount, moneyToCents } from './billing.js';
 import { authRoute, currentUser, originCheck, ADMIN_EMAILS } from './auth.js';
@@ -168,23 +168,42 @@ async function handle(request,env) {
   await env.DB.batch([env.DB.prepare('UPDATE orders SET paid=1,pf_payment_id=? WHERE id=? AND paid=0').bind(p.get('pf_payment_id'),order.id),env.DB.prepare('UPDATE activations SET active=1 WHERE id=?').bind(order.activation_id)]);
   return new Response('OK');
  }
+ if(path==='/api/catalogue' && request.method==='GET'){
+  await device(request,env,true);
+  const input=Object.fromEntries(u.searchParams);
+  if(!['trending','search',undefined].includes(input.mode))fail(400,'Choose trending or search');
+  const result=await twoEmbedCatalogue(input);return json({...result,items:result.items.map(catalogueItem)});
+ }
+ const catalogueTitle=path.match(/^\/api\/catalogue\/(movie|tv)\/([^/]+)$/);
+ if(catalogueTitle && request.method==='GET'){
+  await device(request,env,true);return json(catalogueItem(await twoEmbedMetadata(catalogueTitle[1],mediaID(catalogueTitle[2]))));
+ }
  if(path==='/api/get_links.json') {
   await device(request,env,true);
   const {results}=await env.DB.prepare('SELECT * FROM content WHERE published=1 ORDER BY CASE WHEN metadata_json IS NOT NULL THEN 0 ELSE 1 END,category,title').all();
-  const items=await Promise.all(results.map(async x=>{
+  let items=await Promise.all(results.filter(x=>env.CATALOGUE_SOURCE!=='2embed'||!isDuloURL(x.url)).map(async x=>{
    if(!x.object_key) return {id:x.id,title:x.title,category:x.category,url:x.url,kind:x.kind||'link',media:readMedia(x.metadata_json)};
    const access=token(); await env.DB.prepare('INSERT INTO media_tickets(ticket_hash,content_id,expires_at) VALUES(?,?,?)').bind(hash(access),x.id,Date.now()+6*3600000).run();
    return {id:x.id,title:x.title,category:x.category,url:`${env.PUBLIC_BASE_URL}/watch/${x.id}?ticket=${access}`,kind:'link'};
-  })); return json({items});
+  }));
+  const warnings=[];
+  if(env.CATALOGUE_SOURCE==='2embed'){
+   const feeds=await Promise.allSettled(['movie','tv'].map(mediaType=>twoEmbedCatalogue({mediaType})));
+   const live=feeds.flatMap((feed,index)=>{if(feed.status==='fulfilled')return feed.value.items.map(catalogueItem);warnings.push((index?'TV shows':'Movies')+' are temporarily unavailable. Please retry.');return []});
+   const keys=new Set(live.map(x=>x.media.type+':'+x.media.id));items=[...live,...items.filter(x=>!x.media||!keys.has(x.media.type+':'+x.media.id))];
+  }
+  return json({items,warnings,catalogueSource:env.CATALOGUE_SOURCE||'curated'});
  }
  const episodePath=path.match(/^\/api\/content\/([^/]+)\/episodes$/);
  if(episodePath && request.method==='GET'){
   await device(request,env,true);let id;try{id=decodeURIComponent(episodePath[1])}catch{fail(400,'Invalid content ID')}
-  const record=await env.DB.prepare('SELECT * FROM content WHERE id=? AND published=1').bind(id).first(),details=readMedia(record?.metadata_json);
-  if(!record||details?.type!=='tv')fail(404,'TV series not found');
+  const live=id.match(/^2embed-live-tv-(tt\d{7,10}|[1-9]\d{0,9})$/);
+  const record=live?null:await env.DB.prepare('SELECT * FROM content WHERE id=? AND published=1').bind(id).first();
+  const details=live?await twoEmbedMetadata('tv',live[1]):readMedia(record?.metadata_json);
+  if(details?.type!=='tv')fail(404,'TV series not found');
   const season=episodeNumber(u.searchParams.get('season')??defaultTVSeason(details));
   if(details.seasons?.length&&!details.seasons.some(s=>s.number===season))fail(400,'Choose one of this series’ listed seasons');
-  return json({id:record.id,title:record.title,seasons:details.seasons,...await twoEmbedSeason(details.id,season)});
+  return json({id,title:record?.title||details.title,seasons:details.seasons,...await twoEmbedSeason(details.id,season)});
  }
  const media=path.match(/^\/(watch|media)\/([^/]+)$/);
  if(media) {
