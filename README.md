@@ -12,7 +12,7 @@ D1 and private R2 are provisioned and migrations applied. Payfast credentials an
 
 ## Status
 
-Android debug APK compiled successfully in GitHub Actions (run 40212911977). Device/emulator playback and Payfast end-to-end verification are still pending. Local Android compilation requires JDK 17 and Android SDK 35. Payfast live mode is configured at the owner’s request. A real payment and ITN still require end-to-end verification with production credentials. No production credentials are checked in. A browser test URL serves the backend/landing page and admin studio; it cannot run a native Android APK.
+Android debug APK compiled successfully in GitHub Actions (run 40221009840). Device/emulator playback and Payfast end-to-end verification are still pending. Local Android compilation requires JDK 17 and Android SDK 35. Payfast live mode is configured at the owner’s request. A real payment and ITN still require end-to-end verification with production credentials. No production credentials are checked in. A browser test URL serves the backend/landing page and admin studio; it cannot run a native Android APK.
 
 ## Android Studio / VS Code
 
@@ -47,7 +47,7 @@ npm test
 npx wrangler deploy
 ```
 
-The APK download asset is intentionally ignored by Git. Before deploying from a clean checkout, build/download the debug APK and copy it to `backend/public/downloads/vert-tv-debug.apk` to preserve the homepage download link. The currently deployed APK SHA-256 is `38cac6e26cc3f2357eda3b08613f18c646a511a585350bb6c4cf73f5e2cfbe63`.
+The APK download asset is intentionally ignored by Git. Before deploying from a clean checkout, build/download the debug APK and copy it to `backend/public/downloads/vert-tv-debug.apk` to preserve the homepage download link. The currently deployed APK SHA-256 is `225efe20564a2cc197fdeb9f079e0c4249c3d1fd5178ab1eab8e1ca48088193a`.
 
 Wrangler returns your real public `https://vert-tv.<subdomain>.workers.dev` link. Open `/` for the landing page, `/api/health` for health, and `/admin` for the admin studio. Do not invent a hostname before deployment. For local development use `.dev.vars` copied from `.dev.vars.example`, local D1 migrations (`npx wrangler d1 migrations apply vert-tv --local`) and `npm run dev`.
 
@@ -86,3 +86,7 @@ Brave's actual blocker is the Rust `adblock-rust` engine, not a JavaScript snipp
 ## Verification
 
 `cd backend && npm test` runs 21 tests covering signature canonicalization, token hashing, safe URL handling, HTML escaping, successful verified ITN activation, duplicate ITN idempotency and wrong-amount rejection. Worker request tests cover authorization and rejection paths. Use `npx wrangler deploy --dry-run` to validate the Worker bundle. Schema is in `backend/migrations/`. No APK or successful live payment should be claimed until Android build/device and Payfast sandbox tests pass.
+
+## Welcome screen
+
+Version 1.2 uses an original cinematic poster collage with slow local animation on TV and the website. Native Activate opens the existing email/payment form; the website Activate button opens TV installation/activation instructions. The public page has a motion pause control and supports reduced motion. Browser checks passed at desktop and 390px phone width, including the activation dialog and focus restoration. Android compilation passed; TV device visual testing remains pending. Artwork provenance and the final prompt are in `docs/welcome-art.md`.
