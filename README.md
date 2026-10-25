@@ -8,7 +8,7 @@ https://vert-tv.mahlangu843.workers.dev
 
 Test APK download: https://vert-tv.mahlangu843.workers.dev/downloads/vert-tv-debug.apk
 
-D1 and private R2 are provisioned and migrations applied. Admin authentication configuration and Payfast credentials are still required. Cloudflare returned `Access is not enabled`; enable Zero Trust / Access in the account dashboard before configuring an Access application.
+D1 and private R2 are provisioned and migrations applied. Admin authentication configuration and Payfast credentials are still required. Cloudflare Access is enabled with team domain `cold-sunset-0330.cloudflareaccess.com`. The current CLI login cannot create Access applications (403); create the admin application in the dashboard and set its Application Audience tag in `CF_ACCESS_AUD`.
 
 ## Status
 
