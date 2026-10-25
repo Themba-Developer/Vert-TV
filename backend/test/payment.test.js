@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import worker from '../src/worker.js';
+import {signature} from '../src/security.js';
+const envBase={PAYFAST_MERCHANT_ID:'merchant',PAYFAST_MERCHANT_KEY:'key',PAYFAST_PASSPHRASE:'secret',PAYFAST_SANDBOX:'true'};
+function notification(overrides={}) {const p=new URLSearchParams({merchant_id:'merchant',m_payment_id:'order',pf_payment_id:'payment',payment_status:'COMPLETE',amount_gross:'199.00',...overrides});p.set('signature',signature(p,'secret'));return new Request('https://vert.example/api/payfast/itn',{method:'POST',headers:{'CF-Connecting-IP':'203.0.113.10'},body:p});}
+function database(order) {const batches=[];return {batches,prepare(sql){return {bind(...args){return {first:async()=>order,sql,args}}}},async batch(statements){batches.push(statements)}};}
+function validationFetch(url) {return Promise.resolve(url.includes('dns-query')?Response.json({Answer:[{data:'203.0.113.10'}]}):new Response('VALID'));}
+test('verified complete ITN activates the matching order and device atomically',async()=>{const original=globalThis.fetch;globalThis.fetch=validationFetch;try{const db=database({id:'order',activation_id:'device',paid:0});const r=await worker.fetch(notification(),{...envBase,DB:db});assert.equal(r.status,200);assert.equal(db.batches.length,1);assert.equal(db.batches[0].length,2);assert.deepEqual(db.batches[0][1].args,['device']);}finally{globalThis.fetch=original}});
+test('duplicate verified ITN is idempotent',async()=>{const original=globalThis.fetch;globalThis.fetch=validationFetch;try{const db=database({id:'order',activation_id:'device',paid:1,pf_payment_id:'payment'});const r=await worker.fetch(notification(),{...envBase,DB:db});assert.equal(r.status,200);assert.equal(db.batches.length,0)}finally{globalThis.fetch=original}});
+test('validly signed wrong amount never activates',async()=>{const original=globalThis.fetch;globalThis.fetch=validationFetch;try{const db=database({id:'order',activation_id:'device',paid:0});const r=await worker.fetch(notification({amount_gross:'1.00'}),{...envBase,DB:db});assert.equal(r.status,400);assert.equal(db.batches.length,0)}finally{globalThis.fetch=original}});

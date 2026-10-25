@@ -53,6 +53,8 @@ Set Cloudflare rate-limiting rules for `/api/activation/start` and API traffic b
 
 ## Payfast
 
+Enter sandbox credentials in the ignored `backend/.dev.vars` file. After saving, run `node scripts/publish-payfast-secrets.mjs` from the root to transfer the three fields through stdin to Cloudflare Worker secrets without printing their values. Keep `PAYFAST_SANDBOX=true`.
+
 R199 is a once-off **device activation**, not a recurring subscription. Sandbox is enabled by default. Secrets belong only in Worker secrets or ignored `.dev.vars`. Checkout is a server-signed form, with a separate expiring checkout ticket. The app never sees merchant credentials or passphrase. ITN checks ordered signature, merchant ID, Payfast source DNS/IP, Payfast server validation, exact amount, matching server-created order and COMPLETE status. The payment ID is unique and duplicate notifications are idempotent. Return-page navigation never grants activation.
 
 A freshly entered email does not restore another device's subscription: that would let anyone claim access by knowing a paid email address. Preserve the stored device token to resume an existing pending checkout/payment. Account recovery or multi-device licensing needs a verified email OTP or device-linking policy before release. Admin authentication uses Cloudflare Access; TV activation uses Cloudflare-hosted device tokens.
@@ -71,4 +73,4 @@ Brave's actual blocker is the Rust `adblock-rust` engine, not a JavaScript snipp
 
 ## Verification
 
-`cd backend && npm test` covers signature canonicalization, token hashing, safe URL handling and HTML escaping. Worker request tests cover authorization and rejection paths. Use `npx wrangler deploy --dry-run` to validate the Worker bundle. Schema is in `backend/migrations/`. No APK or successful live payment should be claimed until Android build/device and Payfast sandbox tests pass.
+`cd backend && npm test` runs 16 tests covering signature canonicalization, token hashing, safe URL handling, HTML escaping, successful verified ITN activation, duplicate ITN idempotency and wrong-amount rejection. Worker request tests cover authorization and rejection paths. Use `npx wrangler deploy --dry-run` to validate the Worker bundle. Schema is in `backend/migrations/`. No APK or successful live payment should be claimed until Android build/device and Payfast sandbox tests pass.
