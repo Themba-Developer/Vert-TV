@@ -12,7 +12,7 @@ Native Kotlin Android TV app plus a separate web app, email/password accounts, a
 - Admin dashboard: https://vert-tv.mahlangu843.workers.dev/admin
 - Android APK: https://vert-tv.mahlangu843.workers.dev/downloads/vert-tv-debug.apk
 
-The welcome URL and cinematic design are preserved. `/app` provides the real account/payment/library/player functionality in a browser. It uses the same backend and account entitlement as Android TV. Uploaded R2 movies play in the first-party player; third-party pages may prohibit embedding, in which case the player offers Open source. Native WebView ad filtering does not apply to the browser web app.
+The welcome URL and cinematic design are preserved. `/app` provides the real account/payment/library/player functionality in a browser. It uses the same backend and account entitlement as Android TV. Uploaded R2 movies play in the first-party player; third-party pages may prohibit embedding. Playback stays inside the app with no external-source link or popup/top-navigation permissions; a site that refuses embedding cannot be forced to display by the browser shell. Native WebView ad filtering does not apply to the browser web app.
 
 ## Accounts and free admins
 
@@ -86,3 +86,5 @@ An hourly scheduled handler removes expired playback/checkout tickets, sessions 
 Current verification: Android version 1.3 compiled in GitHub Actions run 40222134457. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
 
 Current APK SHA-256: `40ea3dfe24ed4b03134db43952aeb09bc135c868ae8f964f3b24264531bcaa95`.
+
+The browser player fills the viewport, requests browser fullscreen on selection where supported, and shows only a small Back to library overlay. Browser Back/Escape also returns to the library and stops the embedded page. The iframe sandbox blocks popup windows and top-level navigation; source-site branding remains controlled by that site.
