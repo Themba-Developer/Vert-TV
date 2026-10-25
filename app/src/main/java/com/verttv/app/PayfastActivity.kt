@@ -10,8 +10,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class PayfastActivity : ViewerActivity() {
+    override fun onDestroy(){AdBlockEngine.endPayment();super.onDestroy()}
     override fun onCreate(state: Bundle?) {
+        AdBlockEngine.beginPayment()
         super.onCreate(state)
+        if(!isWebReady())return
         val api = Api(this)
         web.webViewClient = object : AdBlockWebViewClient(false) {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {

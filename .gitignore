@@ -9,3 +9,8 @@ node_modules/
 *.jks
 
 /backend/public/downloads/*.apk
+
+/native/adblock_bridge/target/
+/app/src/main/jniLibs/
+/app/src/main/assets/rust-dependency-licenses.txt
+/.signing/

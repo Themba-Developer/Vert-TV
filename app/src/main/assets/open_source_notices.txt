@@ -1,0 +1,17 @@
+Vert TV uses adblock-rust 0.13.3 (Brave Software and contributors), MPL-2.0.
+Engine source: https://github.com/brave/adblock-rust/tree/v0.13.3
+Exact published source: https://crates.io/api/v1/crates/adblock/0.13.3/download
+Vert TV JNI bridge and integration source: https://github.com/Themba-Developer/Vert-TV/tree/main/native/adblock_bridge
+The full MPL-2.0 licence is included in adblock/adblock-rust-MPL-2.0.txt.
+The engine is not modified. Vert TV is not Brave Browser and is not endorsed by Brave.
+
+EasyList and EasyPrivacy (EasyList authors and contributors).
+Unmodified list snapshots are bundled with original headers; manifest.json contains dates and hashes.
+Official updates: https://easylist.to/easylist/easylist.txt and https://easylist.to/easylist/easyprivacy.txt
+Project: https://easylist.to/
+The lists are dual-licensed; Vert TV distributes the lists under CC BY-SA 4.0:
+https://creativecommons.org/licenses/by-sa/4.0/
+Attribution/licence details: https://easylist.to/pages/licence.html
+
+Other Rust dependency licences are included in rust-dependency-licenses.txt.
+No Brave trademarks or browser branding are used by this app.

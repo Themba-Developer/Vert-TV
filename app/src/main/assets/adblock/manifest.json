@@ -1,0 +1,13 @@
+{
+  "easylist": {
+    "source": "https://easylist.to/easylist/easylist.txt",
+    "sha256": "f40bbeab75e65dede1cd19ff0d54e08b54d0454880897afb281ac0b1660fd1fa",
+    "bytes": 2249295
+  },
+  "easyprivacy": {
+    "source": "https://easylist.to/easylist/easyprivacy.txt",
+    "sha256": "ea5548a0049dd5bca1a033f03a9634ccdf305f76b0e7e3fcb998b6a5d30c74f8",
+    "bytes": 1511221
+  },
+  "bundledAt": "2026-10-25T22:02:01.264633+00:00"
+}

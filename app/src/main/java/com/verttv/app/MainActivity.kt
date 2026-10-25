@@ -10,6 +10,7 @@ import org.json.JSONObject
 
 class MainActivity : FragmentActivity() {
     private lateinit var api: Api
+    private var openingLibrary=false
     override fun onCreate(state: Bundle?) { super.onCreate(state); api = Api(this) }
     override fun onResume() { super.onResume(); verify() }
     private fun verify() {
@@ -17,7 +18,7 @@ class MainActivity : FragmentActivity() {
         lifecycleScope.launch {
             try {
                 if (api.request("/api/activation/status").optBoolean("active")) {
-                    supportFragmentManager.beginTransaction().replace(android.R.id.content, DashboardFragment()).commit()
+                    if(!openingLibrary){openingLibrary=true;startActivity(Intent(this@MainActivity,LibraryActivity::class.java));finish()}
                 } else activation()
             } catch (e: Exception) {
                 if(e is ApiException && e.status == 401) api.prefs.edit().remove("token").apply()

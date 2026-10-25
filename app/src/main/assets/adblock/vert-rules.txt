@@ -1,0 +1,20 @@
+[Adblock Plus 2.0]
+! Vert TV supplementary network rules. SPDX-License-Identifier: MPL-2.0
+! Deliberately do not block generic /ads/ paths or entire video/CDN providers.
+||doubleclick.net^
+||googlesyndication.com^
+||googleadservices.com^
+||google-analytics.com^
+||analytics.google.com^
+||ads.youtube.com^
+||adservice.google.com^
+||adnxs.com^
+||adsrvr.org^
+||scorecardresearch.com^
+||taboola.com^
+||outbrain.com^
+##.ytp-ad-overlay-container
+##.video-ads
+##.ad-container
+##[data-ad-slot]
+##ins.adsbygoogle

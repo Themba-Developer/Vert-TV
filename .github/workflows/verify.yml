@@ -3,9 +3,12 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   android:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -14,13 +17,127 @@ jobs:
           java-version: '17'
       - uses: android-actions/setup-android@v3
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0 ndk;28.2.13676358'
+      - name: Set up pinned Rust and Android targets
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+          rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+          cargo install cargo-ndk --version 4.1.2 --locked
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/adblock_bridge/target
+          key: rust-android-ndk28-${{ runner.os }}-${{ hashFiles('native/adblock_bridge/Cargo.lock') }}
+      - name: Test Brave engine rules and bundled lists
+        working-directory: native/adblock_bridge
+        run: cargo test --locked
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew assembleDebug
+      - name: Build universal debug and instrumentation APKs
+        run: ./gradlew assembleDebug assembleDebugAndroidTest
+      - name: Verify universal test APK and 16KB packaging
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('app/build/outputs/apk/debug/app-debug.apk') as apk:
+            for abi in ['armeabi-v7a','arm64-v8a','x86','x86_64']:
+              assert 'lib/'+abi+'/libvert_adblock.so' in apk.namelist(),abi
+            assert 'assets/rust-dependency-licenses.txt' in apk.namelist()
+          print('All four native libraries and notices are present')
+          PY
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: vert-tv-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vert-tv-android-tests
+          path: app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+      - name: Check for owner-approved release signing
+        id: signing
+        if: github.event_name != 'pull_request'
+        env:
+          VERT_KEYSTORE_BASE64: ${{ secrets.VERT_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          python3 - <<'PY'
+          import os,base64,pathlib
+          encoded=os.environ.get('VERT_KEYSTORE_BASE64','')
+          if not encoded:
+            with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('ready=false\n')
+            print('Permanent signing configuration awaits explicit owner approval; debug APK remains available')
+            raise SystemExit(0)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('ready=true\n')
+          path=pathlib.Path(os.environ['RUNNER_TEMP'])/'vert-tv-release.jks'
+          path.write_bytes(base64.b64decode(encoded,validate=True));path.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('VERT_KEYSTORE='+str(path)+'\n')
+          PY
+      - name: Build signed universal release
+        if: steps.signing.outputs.ready == 'true'
+        env:
+          VERT_STORE_PASSWORD: ${{ secrets.VERT_ANDROID_STORE_PASSWORD }}
+          VERT_KEY_PASSWORD: ${{ secrets.VERT_ANDROID_KEY_PASSWORD }}
+          VERT_KEY_ALIAS: ${{ secrets.VERT_ANDROID_KEY_ALIAS }}
+        run: ./gradlew assembleRelease
+      - name: Verify release ABIs, signature and 16KB alignment
+        if: steps.signing.outputs.ready == 'true'
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          path='app/build/outputs/apk/release/app-release.apk'
+          with zipfile.ZipFile(path) as apk:
+            for abi in ['armeabi-v7a','arm64-v8a','x86','x86_64']:
+              assert 'lib/'+abi+'/libvert_adblock.so' in apk.namelist(),abi
+            for name in ['easylist.txt','easyprivacy.txt']:
+              assert apk.getinfo('assets/adblock/'+name).file_size>100000
+            assert 'assets/rust-dependency-licenses.txt' in apk.namelist()
+          print('All four native ABIs, offline lists and dependency notices verified')
+          PY
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 app/build/outputs/apk/release/app-release.apk
+      - uses: actions/upload-artifact@v4
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          name: vert-tv-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+  android-smoke:
+    needs: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: vert-tv-debug-apk
+          path: apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: vert-tv-android-tests
+          path: apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb install apk/app-debug.apk
+            adb install apk/app-debug-androidTest.apk
+            adb shell am instrument -w com.verttv.app.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation.txt
+            grep -q 'OK (1 test)' instrumentation.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vert-tv-emulator-result
+          path: instrumentation.txt
   backend:
     runs-on: ubuntu-latest
     defaults:

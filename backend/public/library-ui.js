@@ -1,7 +1,8 @@
 import {duloSearchURL} from './dulo-search.js';
 const $=selector=>document.querySelector(selector);
 export function mountLibrary({getItems,openItem,api}){
- let tab='home',type='movie',activity=new Map(),category='All',timer=null,searchGeneration=0;
+ const initialTab=new URLSearchParams(location.search).get('native')==='1'?'trending':'home';
+ let tab=initialTab,type='movie',activity=new Map(),category='All',timer=null,searchGeneration=0;
  const titles={home:['CURATED FOR YOUR SCREEN','Explore your world'],recent:['PICK UP WHERE YOU LEFT OFF','Recently opened'],loved:['THE ONES YOU COME BACK TO','Your favourites'],trending:['THE CONVERSATION STARTS HERE','Trending now'],new:['SOMETHING NEW TONIGHT','Fresh discoveries']};
  function discoveryURL(){const url=new URL(type==='tv'?'https://dulo.mov/shows/':'https://dulo.mov/movies/');url.searchParams.set('shelf',tab==='new'?(type==='tv'?'new-seasons':'in-theaters'):'popular');return url.href}
  function closePreview(){clearTimeout(timer);searchGeneration++;$('#live-search-preview').hidden=true;$('#search-suggestions-frame').src='about:blank';$('#movie-query').setAttribute('aria-expanded','false')}
@@ -23,5 +24,5 @@ export function mountLibrary({getItems,openItem,api}){
  $('#movie-query').addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closePreview()}});
  $('#expand-search').onclick=()=>$('#movie-search').requestSubmit();
  document.addEventListener('click',event=>{if(!event.target.closest('.search-area'))closePreview()});
- return {render,closePreview,async loadActivity(){try{const result=await api('/api/library/activity');activity=new Map(result.items.map(item=>[item.id,item]))}catch{activity=new Map();$('#library-status').textContent='Your saved library is temporarily unavailable.'}},record(item){if(!item.id||!getItems().some(x=>x.id===item.id))return;api('/api/library/activity',{contentId:item.id,opened:true}).then(()=>{activity.set(item.id,{...activity.get(item.id),id:item.id,lastOpened:Date.now()});if(tab==='recent')render()}).catch(()=>{$('#library-status').textContent='Unable to save this item to Recent.'})},reset(){activity.clear();tab='home';category='All';closePreview();$('#discovery-frame').src='about:blank'}};
+ return {render,closePreview,async loadActivity(){try{const result=await api('/api/library/activity');activity=new Map(result.items.map(item=>[item.id,item]))}catch{activity=new Map();$('#library-status').textContent='Your saved library is temporarily unavailable.'}},record(item){if(!item.id||!getItems().some(x=>x.id===item.id))return;api('/api/library/activity',{contentId:item.id,opened:true}).then(()=>{activity.set(item.id,{...activity.get(item.id),id:item.id,lastOpened:Date.now()});if(tab==='recent')render()}).catch(()=>{$('#library-status').textContent='Unable to save this item to Recent.'})},reset(){activity.clear();tab=initialTab;category='All';closePreview();$('#discovery-frame').src='about:blank'}};
 }

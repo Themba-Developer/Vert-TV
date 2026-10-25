@@ -22,6 +22,13 @@ async function device(request,env,active=false) {
 function payfast(env) { if(!env.PAYFAST_MERCHANT_ID || !env.PAYFAST_MERCHANT_KEY || !env.PAYFAST_PASSPHRASE) fail(503,'Payfast credentials are not configured yet'); return env.PAYFAST_SANDBOX==='true'?'https://sandbox.payfast.co.za':'https://www.payfast.co.za'; }
 async function handle(request,env) {
  const u=new URL(request.url), path=u.pathname;
+ if(path==='/tv')return Response.redirect(new URL('/install',u),302);
+ if(path==='/native/settings')return new Response('Ad blocker and app information settings are available inside the Vert TV Android app.',{headers:{'Content-Type':'text/plain;charset=utf-8'}});
+ if(['/downloads/vert-tv.apk','/downloads/vert-tv-debug.apk'].includes(path)&&['GET','HEAD'].includes(request.method)){
+  const response=await env.ASSETS.fetch(request);if(!response.ok)return response;
+  const headers=new Headers(response.headers);headers.set('Content-Type','application/vnd.android.package-archive');headers.set('Content-Disposition','attachment; filename="Vert-TV.apk"');headers.set('Cache-Control','no-cache');headers.set('X-Content-Type-Options','nosniff');
+  return new Response(response.body,{status:response.status,headers});
+ }
  if(path.startsWith('/api/auth/')) return authRoute(request,env,path);
  if(['/login','/signup','/account','/app'].includes(path)) return env.ASSETS.fetch(new Request(new URL('/auth',u),request));
  if(path==='/api/billing/checkout' && request.method==='POST') {

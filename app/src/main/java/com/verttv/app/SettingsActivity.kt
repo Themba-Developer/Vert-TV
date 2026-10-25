@@ -23,6 +23,27 @@ class SettingsActivity : FragmentActivity() {
             RecoveryActivity.passwordToggle(field,button("Show password 👁"));return field
         }
         text("Account settings",32f);text(api.prefs.getString("email","") ?: "")
+        text("Ad blocking",24f)
+        val protection=TextView(this).apply { text=AdBlockEngine.status(this@SettingsActivity);textSize=17f;setTextColor(Color.LTGRAY);root.addView(this) }
+        button("Update filter lists").setOnClickListener { view ->
+            view.isEnabled=false
+            lifecycleScope.launch {
+                AdBlockEngine.awaitReady(this@SettingsActivity)
+                val updated=AdBlockEngine.refresh(this@SettingsActivity)
+                protection.text=AdBlockEngine.status(this@SettingsActivity)+if(updated) "\nLists updated." else "\nNo update downloaded. Existing protection remains active."
+                view.isEnabled=true
+            }
+        }
+        button("Open-source notices").setOnClickListener {
+            val notices=buildString {
+                for(path in listOf("open_source_notices.txt","adblock/adblock-rust-MPL-2.0.txt","rust-dependency-licenses.txt")){
+                    try { append(assets.open(path).bufferedReader().use { it.readText() });append("\n\n") }catch(_: Exception){}
+                }
+            }
+            android.app.AlertDialog.Builder(this).setTitle("Open-source notices").setMessage(notices).setPositiveButton("Close",null).show()
+        }
+        text("Android ${android.os.Build.VERSION.RELEASE} · ${android.os.Build.SUPPORTED_ABIS.joinToString()}\nWebView: ${android.webkit.WebView.getCurrentWebViewPackage()?.versionName ?: "unavailable"}",14f)
+
         button("Update security questions").setOnClickListener { startActivity(Intent(this,RecoveryActivity::class.java).putExtra("setup",true)) }
         text("Change password",24f)
         val current=password("Current password")
