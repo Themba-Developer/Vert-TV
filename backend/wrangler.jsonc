@@ -29,7 +29,7 @@
     "PUBLIC_BASE_URL": "https://vert-tv.mahlangu843.workers.dev",
     "PAYFAST_SANDBOX": "false",
     "CF_ACCESS_TEAM_DOMAIN": "cold-sunset-0330.cloudflareaccess.com",
-    "CF_ACCESS_AUD": ""
+    "CF_ACCESS_AUD": "a319b81ada023a40dda2d89ca6b2dc6a6b74ca19d2364c388cef33e000fc2520"
   },
   "triggers": {
     "crons": [

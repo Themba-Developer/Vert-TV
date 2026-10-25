@@ -8,7 +8,7 @@ https://vert-tv.mahlangu843.workers.dev
 
 Test APK download: https://vert-tv.mahlangu843.workers.dev/downloads/vert-tv-debug.apk
 
-D1 and private R2 are provisioned and migrations applied. Admin authentication configuration and Payfast credentials are still required. Cloudflare Access is enabled with team domain `cold-sunset-0330.cloudflareaccess.com`. The current CLI login cannot create Access applications (403); create the admin application in the dashboard and set its Application Audience tag in `CF_ACCESS_AUD`.
+D1 and private R2 are provisioned and migrations applied. Payfast credentials and live mode are configured. Admin authentication is configured through `cold-sunset-0330.cloudflareaccess.com`, with the application audience saved in `CF_ACCESS_AUD`. The Access policy permits only `vertcorpgroup@gmail.com` on `/admin` and `/api/admin` and their subpaths.
 
 ## Status
 
