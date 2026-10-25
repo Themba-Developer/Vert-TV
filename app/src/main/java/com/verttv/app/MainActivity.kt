@@ -40,7 +40,10 @@ class MainActivity : FragmentActivity() {
                     val result = if (pending) api.request("/api/activation/checkout", JSONObject()) else api.request("/api/activation/start", JSONObject().put("email", value))
                     if (!pending) api.prefs.edit().putString("email", value).putString("token", result.getString("token")).apply()
                     startActivity(Intent(this@MainActivity, PayfastActivity::class.java).putExtra("checkout", result.getString("checkoutUrl")))
-                } catch (e: Exception) { findViewById<TextView>(R.id.status).text = e.message }
+                } catch (e: Exception) {
+                    if(e is ApiException && e.status == 401) api.prefs.edit().remove("token").apply()
+                    findViewById<TextView>(R.id.status).text = e.message
+                }
                 finally { button.isEnabled = true }
             }
         }
