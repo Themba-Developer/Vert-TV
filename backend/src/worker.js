@@ -33,7 +33,7 @@ async function handle(request,env) {
  if((path==='/admin'||path==='/admin/')&&!await currentUser(request,env))return Response.redirect(new URL('/login?next=/admin',u),302);
  if(path==='/api/health') return json({ok:true,service:'Vert TV',paymentsConfigured:!!(env.PAYFAST_MERCHANT_ID && env.PAYFAST_MERCHANT_KEY && env.PAYFAST_PASSPHRASE),paymentMode:env.PAYFAST_SANDBOX==='true'?'sandbox':'live'});
  if(path.startsWith('/api/admin/') || path==='/admin' || path.startsWith('/admin/')) {
-  const owner=await admin(request,env); originCheck(request);
+  const owner=await admin(request,env); if(!['GET','HEAD','OPTIONS'].includes(request.method))originCheck(request);
   if(path==='/admin' || path==='/admin/') return env.ASSETS.fetch(new Request(new URL('/admin',u),request));
   if(path==='/api/admin/content' && request.method==='GET') return json({items:(await env.DB.prepare('SELECT * FROM content ORDER BY created_at DESC').all()).results});
   if(path==='/api/admin/content' && request.method==='POST') {

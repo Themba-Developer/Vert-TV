@@ -81,7 +81,7 @@ An hourly scheduled handler removes expired playback/checkout tickets, sessions 
 
 ## Verification
 
-`cd backend && npm test` runs 29 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
+`cd backend && npm test` runs 30 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
 
 Current verification: Android version 1.3 compiled in GitHub Actions run 40222134457. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
 
