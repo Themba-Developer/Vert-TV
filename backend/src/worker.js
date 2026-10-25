@@ -1,3 +1,4 @@
+import { ACTIVATION_AMOUNT_CENTS, formatAmount, moneyToCents } from './billing.js';
 import { authRoute, currentUser, originCheck, ADMIN_EMAILS } from './auth.js';
 import { hash, signature, canonical, equal, httpsURL, escapeHTML } from './security.js';
 const json = (value,status=200) => Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
@@ -25,13 +26,13 @@ async function handle(request,env) {
   originCheck(request);const user=await currentUser(request,env);if(!user)fail(401,'Please sign in');
   if(user.active||user.payment_exempt)return json({active:true});
   payfast(env);
-  let order=await env.DB.prepare('SELECT id FROM orders WHERE activation_id=? AND paid=0 ORDER BY rowid DESC LIMIT 1').bind(user.id).first();
-  if(!order){const id=crypto.randomUUID();await env.DB.prepare('INSERT INTO orders(id,activation_id,user_id) VALUES(?,?,?)').bind(id,user.id,user.id).run();order={id};}
+  let order=await env.DB.prepare('SELECT id FROM orders WHERE activation_id=? AND paid=0 AND amount_cents=? ORDER BY rowid DESC LIMIT 1').bind(user.id,ACTIVATION_AMOUNT_CENTS).first();
+  if(!order){const id=crypto.randomUUID();await env.DB.prepare('INSERT INTO orders(id,activation_id,user_id,amount_cents) VALUES(?,?,?,?)').bind(id,user.id,user.id,ACTIVATION_AMOUNT_CENTS).run();order={id};}
   const ticket=token();await env.DB.prepare('INSERT INTO checkout_tickets(ticket_hash,order_id,expires_at) VALUES(?,?,?)').bind(hash(ticket),order.id,Date.now()+30*60000).run();
   return json({checkoutUrl:`${env.PUBLIC_BASE_URL}/checkout?ticket=${ticket}`});
  }
  if((path==='/admin'||path==='/admin/')&&!await currentUser(request,env))return Response.redirect(new URL('/login?next=/admin',u),302);
- if(path==='/api/health') return json({ok:true,service:'Vert TV',paymentsConfigured:!!(env.PAYFAST_MERCHANT_ID && env.PAYFAST_MERCHANT_KEY && env.PAYFAST_PASSPHRASE),paymentMode:env.PAYFAST_SANDBOX==='true'?'sandbox':'live'});
+ if(path==='/api/health') return json({ok:true,service:'Vert TV',paymentsConfigured:!!(env.PAYFAST_MERCHANT_ID && env.PAYFAST_MERCHANT_KEY && env.PAYFAST_PASSPHRASE),paymentMode:env.PAYFAST_SANDBOX==='true'?'sandbox':'live',activationAmountCents:ACTIVATION_AMOUNT_CENTS,currency:'ZAR'});
  if(path.startsWith('/api/admin/') || path==='/admin' || path.startsWith('/admin/')) {
   const owner=await admin(request,env); if(!['GET','HEAD','OPTIONS'].includes(request.method))originCheck(request);
   if(path==='/admin' || path==='/admin/') return env.ASSETS.fetch(new Request(new URL('/admin',u),request));
@@ -92,7 +93,7 @@ async function handle(request,env) {
   payfast(env);
   const id=crypto.randomUUID(), secret=token(), checkout=token(), order=crypto.randomUUID();
   // A fresh device must pay; knowing an active email does not grant access.
-  await env.DB.batch([env.DB.prepare('INSERT INTO activations(id,email,token_hash) VALUES(?,?,?)').bind(id,email,hash(secret)),env.DB.prepare('INSERT INTO orders(id,activation_id) VALUES(?,?)').bind(order,id)]);
+  await env.DB.batch([env.DB.prepare('INSERT INTO activations(id,email,token_hash) VALUES(?,?,?)').bind(id,email,hash(secret)),env.DB.prepare('INSERT INTO orders(id,activation_id,amount_cents) VALUES(?,?,?)').bind(order,id,ACTIVATION_AMOUNT_CENTS)]);
   // Checkout ticket is scoped to checkout only, never a device bearer token.
   await env.DB.prepare('INSERT INTO checkout_tickets(ticket_hash,order_id,expires_at) VALUES(?,?,?)').bind(hash(checkout),order,Date.now()+30*60*1000).run();
   return json({token:secret,checkoutUrl:`${env.PUBLIC_BASE_URL}/checkout?ticket=${checkout}`});
@@ -101,18 +102,21 @@ async function handle(request,env) {
   originCheck(request); const d=await device(request,env);
   if(ADMIN_EMAILS.has(d.email) || (env.EXEMPT_EMAIL && d.email===env.EXEMPT_EMAIL.toLowerCase())) return json({requiresActivationCode:true});
   payfast(env);
-  const order=await env.DB.prepare('SELECT id FROM orders WHERE activation_id=? AND paid=0 LIMIT 1').bind(d.id).first();
-  if(!order) fail(409,'No pending payment'); const checkout=token();
+  if(d.active)return json({active:true});
+  let order=await env.DB.prepare('SELECT id FROM orders WHERE activation_id=? AND paid=0 AND amount_cents=? ORDER BY rowid DESC LIMIT 1').bind(d.id,ACTIVATION_AMOUNT_CENTS).first();
+  if(!order){const id=crypto.randomUUID();await env.DB.prepare('INSERT INTO orders(id,activation_id,amount_cents) VALUES(?,?,?)').bind(id,d.id,ACTIVATION_AMOUNT_CENTS).run();order={id};}
+  const checkout=token();
   await env.DB.prepare('INSERT INTO checkout_tickets(ticket_hash,order_id,expires_at) VALUES(?,?,?)').bind(hash(checkout),order.id,Date.now()+30*60*1000).run();
   return json({checkoutUrl:`${env.PUBLIC_BASE_URL}/checkout?ticket=${checkout}`});
  }
  if(path==='/api/activation/status') { const d=await device(request,env); return json({active:!!d.active}); }
  if(path==='/checkout') {
   const host=payfast(env), ticket=u.searchParams.get('ticket')||'';
-  const order=await env.DB.prepare('SELECT o.id,a.email FROM checkout_tickets t JOIN orders o ON o.id=t.order_id JOIN activations a ON a.id=o.activation_id WHERE t.ticket_hash=? AND t.expires_at>?').bind(hash(ticket),Date.now()).first(); if(!order) fail(401,'Checkout expired. Return to the app and retry.');
-  const p=new URLSearchParams({merchant_id:env.PAYFAST_MERCHANT_ID,merchant_key:env.PAYFAST_MERCHANT_KEY,return_url:env.PUBLIC_BASE_URL+'/payment/return',cancel_url:env.PUBLIC_BASE_URL+'/payment/cancel',notify_url:env.PUBLIC_BASE_URL+'/api/payfast/itn',email_address:order.email,m_payment_id:order.id,amount:'199.00',item_name:'Vert TV once-off activation'});
+  const order=await env.DB.prepare('SELECT o.id,o.amount_cents,a.email FROM checkout_tickets t JOIN orders o ON o.id=t.order_id JOIN activations a ON a.id=o.activation_id WHERE t.ticket_hash=? AND t.expires_at>?').bind(hash(ticket),Date.now()).first(); if(!order) fail(401,'Checkout expired. Return to the app and retry.');
+  const amount=formatAmount(order.amount_cents);
+  const p=new URLSearchParams({merchant_id:env.PAYFAST_MERCHANT_ID,merchant_key:env.PAYFAST_MERCHANT_KEY,return_url:env.PUBLIC_BASE_URL+'/payment/return',cancel_url:env.PUBLIC_BASE_URL+'/payment/cancel',notify_url:env.PUBLIC_BASE_URL+'/api/payfast/itn',email_address:order.email,m_payment_id:order.id,amount,item_name:'Vert TV once-off activation'});
   p.set('signature',signature(p,env.PAYFAST_PASSPHRASE));
-  return new Response(`<!doctype html><html><head><meta name="viewport" content="width=device-width"></head><body style="background:#090f1b;color:white;font:24px sans-serif;padding:4rem"><h1>Activate Vert TV</h1><p>R199 once-off</p><form method="POST" action="${host}/eng/process">${[...p].map(([k,v])=>`<input type="hidden" name="${k}" value="${escapeHTML(v)}">`).join('')}<button style="font-size:24px;padding:20px">Continue to secure Payfast checkout</button></form></body></html>`,{headers:{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; form-action ${host}; frame-ancestors 'none'`}});
+  return new Response(`<!doctype html><html><head><meta name="viewport" content="width=device-width"></head><body style="background:#090f1b;color:white;font:24px sans-serif;padding:4rem"><h1>Activate Vert TV</h1><p>R${amount} once-off</p><form method="POST" action="${host}/eng/process">${[...p].map(([k,v])=>`<input type="hidden" name="${k}" value="${escapeHTML(v)}">`).join('')}<button style="font-size:24px;padding:20px">Continue to secure Payfast checkout</button></form></body></html>`,{headers:{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; form-action ${host}; frame-ancestors 'none'`}});
  }
  if(path==='/api/payfast/itn' && request.method==='POST') {
   const host=payfast(env), raw=await request.text(); if(raw.length>20000) fail(413,'Too large');
@@ -128,7 +132,7 @@ async function handle(request,env) {
   const check=await fetch(host+'/eng/query/validate',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:canonical(p)});
   if(!check.ok || (await check.text()).trim()!=='VALID') fail(400,'ITN validation failed');
   const order=await env.DB.prepare('SELECT * FROM orders WHERE id=?').bind(p.get('m_payment_id')).first();
-  if(!order || !/^199\.00$/.test(p.get('amount_gross')||'') || p.get('payment_status')!=='COMPLETE' || !p.get('pf_payment_id')) fail(400,'Payment mismatch');
+  if(!order || moneyToCents(p.get('amount_gross'))!==order.amount_cents || p.get('payment_status')!=='COMPLETE' || !p.get('pf_payment_id')) fail(400,'Payment mismatch');
   if(order.paid) { if(order.pf_payment_id!==p.get('pf_payment_id')) fail(409,'Payment mismatch'); return new Response('OK'); }
   await env.DB.batch([env.DB.prepare('UPDATE orders SET paid=1,pf_payment_id=? WHERE id=? AND paid=0').bind(p.get('pf_payment_id'),order.id),env.DB.prepare('UPDATE activations SET active=1 WHERE id=?').bind(order.activation_id)]);
   return new Response('OK');

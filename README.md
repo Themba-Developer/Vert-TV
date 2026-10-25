@@ -16,7 +16,7 @@ The welcome URL and cinematic design are preserved. `/app` provides the real acc
 
 ## Accounts and free admins
 
-Users create an account using email and a password of 12–128 characters. Unpaid accounts can activate once for R199 with Payfast. After a verified ITN, the same account can sign in on another device without another payment. Navigating a payment return URL alone never unlocks access.
+Users create an account using email and a password of 12–128 characters. Unpaid accounts can activate once for R399 with Payfast. After a verified ITN, the same account can sign in on another device without another payment. Navigating a payment return URL alone never unlocks access.
 
 These two reserved emails receive the admin role and automatic payment exemption:
 
@@ -69,7 +69,7 @@ The APK download asset is ignored by Git. Before deploying a clean checkout, bui
 
 ## Payfast and storage
 
-The backend creates the R199 order and signed checkout form. Merchant credentials and passphrase remain server-side. ITN verifies signature, merchant ID, Payfast source DNS/IP, server-to-server validation, order, exact gross amount and COMPLETE status. Unique payment IDs and duplicate checks provide idempotency. Authenticated browser and TV sessions read the shared activation anchor, so verified payment unlocks the whole account. Live merchant credential validity and real payment delivery require actual merchant testing.
+The backend creates the R399 order and signed checkout form. Merchant credentials and passphrase remain server-side. ITN verifies signature, merchant ID, Payfast source DNS/IP, server-to-server validation, order, exact gross amount and COMPLETE status. Unique payment IDs and duplicate checks provide idempotency. Authenticated browser and TV sessions read the shared activation anchor, so verified payment unlocks the whole account. Live merchant credential validity and real payment delivery require actual merchant testing.
 
 The admin can create/edit/remove links and upload MP4/WebM movies in 8 MiB multipart chunks, up to 50 GB. Completion checks object size and publishes into D1. R2 remains private; active accounts receive six-hour playback URLs with range support. Keep the upload tab open; cross-restart upload resume is not implemented. Configure an R2 lifecycle rule for abandoned multipart uploads. Removing a title retains its R2 object for deliberate storage retention; remove the object separately when desired.
 
@@ -81,7 +81,7 @@ An hourly scheduled handler removes expired playback/checkout tickets, sessions 
 
 ## Verification
 
-`cd backend && npm test` runs 32 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
+`cd backend && npm test` runs 37 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
 
 Current verification: Android version 1.3 compiled in GitHub Actions run 40222134457. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
 
@@ -95,4 +95,6 @@ The admin library supports `kind=collection` entries as well as ordinary links. 
 
 Collection tiles open the section directly in the existing edge-to-edge internal viewer. The upstream catalogue and its branding remain controlled by Dulo. No movie files or individual-title catalogue are copied. Existing Movie Box and News records are preserved. The admin can edit/delete these entries and add other providers using Entry type → Library collection. Ordinary title/website entries and R2 uploads continue working. Existing Android builds read the same endpoint and automatically receive the new collection links.
 
-The owner explicitly retained R199 activation for normal accounts; free access for the two reserved admin accounts is unchanged. The welcome `/` URL and separate `/app` URL are unchanged.
+The owner explicitly retained R399 activation for normal accounts; free access for the two reserved admin accounts is unchanged. The welcome `/` URL and separate `/app` URL are unchanged.
+
+Pricing is R399 for all newly generated checkout sessions. All application order inserts explicitly store `amount_cents=39900`; the historical default in migration 0001 is retained unchanged. An already issued, unexpired R199 ticket remains at its stored quoted amount, and verified ITNs are checked against that exact order amount. Starting or resuming checkout after the price update creates/reuses an R399 order. Previous payments and free-admin exemptions are preserved.

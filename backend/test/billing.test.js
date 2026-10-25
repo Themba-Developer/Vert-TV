@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {ACTIVATION_AMOUNT_CENTS,formatAmount,moneyToCents} from '../src/billing.js';
+test('current activation is R399 and money validation uses exact integer cents',()=>{assert.equal(ACTIVATION_AMOUNT_CENTS,39900);assert.equal(formatAmount(39900),'399.00');assert.equal(formatAmount(19900),'199.00');assert.equal(moneyToCents('399.00'),39900);for(const input of ['399','399.0','399.001','3.99e2','-399.00',' 399.00',399,null])assert.equal(moneyToCents(input),null)});
