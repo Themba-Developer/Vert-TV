@@ -12,7 +12,7 @@ D1 and private R2 are provisioned and migrations applied. Admin authentication c
 
 ## Status
 
-Android debug APK compiled successfully in GitHub Actions (run 40211654811). Device/emulator playback and Payfast end-to-end verification are still pending. Local Android compilation requires JDK 17 and Android SDK 35. Payfast live mode is configured at the owner’s request. A real payment and ITN still require end-to-end verification with production credentials. No production credentials are checked in. A browser test URL serves the backend/landing page and admin studio; it cannot run a native Android APK.
+Android debug APK compiled successfully in GitHub Actions (run 40212911977). Device/emulator playback and Payfast end-to-end verification are still pending. Local Android compilation requires JDK 17 and Android SDK 35. Payfast live mode is configured at the owner’s request. A real payment and ITN still require end-to-end verification with production credentials. No production credentials are checked in. A browser test URL serves the backend/landing page and admin studio; it cannot run a native Android APK.
 
 ## Android Studio / VS Code
 
@@ -47,7 +47,7 @@ npm test
 npx wrangler deploy
 ```
 
-The APK download asset is intentionally ignored by Git. Before deploying from a clean checkout, build/download the debug APK and copy it to `backend/public/downloads/vert-tv-debug.apk` to preserve the homepage download link. The currently deployed APK SHA-256 is `e71365ad87c1b3f088dcaaa6bbe87b69fa2213864794d6a9fc04da3e1db8d9f9`.
+The APK download asset is intentionally ignored by Git. Before deploying from a clean checkout, build/download the debug APK and copy it to `backend/public/downloads/vert-tv-debug.apk` to preserve the homepage download link. The currently deployed APK SHA-256 is `38cac6e26cc3f2357eda3b08613f18c646a511a585350bb6c4cf73f5e2cfbe63`.
 
 Wrangler returns your real public `https://vert-tv.<subdomain>.workers.dev` link. Open `/` for the landing page, `/api/health` for health, and `/admin` for the admin studio. Do not invent a hostname before deployment. For local development use `.dev.vars` copied from `.dev.vars.example`, local D1 migrations (`npx wrangler d1 migrations apply vert-tv --local`) and `npm run dev`.
 
@@ -64,6 +64,10 @@ R199 is a once-off **device activation**, not a recurring subscription. Live mod
 A freshly entered email does not restore another device's subscription: that would let anyone claim access by knowing a paid email address. Preserve the stored device token to resume an existing pending checkout/payment. Account recovery or multi-device licensing needs a verified email OTP or device-linking policy before release. Admin authentication uses Cloudflare Access; TV activation uses Cloudflare-hosted device tokens.
 
 Test successful payment, cancellation, delayed ITN, forged/duplicate ITN, incorrect merchant/amount, network loss, app restart and token rejection in sandbox. Then set `PAYFAST_SANDBOX` to `false` and use production secrets. Confirm Payfast's current allowed notification source addresses and validation behavior with your merchant integration during sandbox testing; DNS source verification is intentionally strict.
+
+## Access setup delegation
+
+To delegate admin Access application setup, create a temporary Cloudflare API token scoped to this account with `Access: Apps and Policies` Edit permission. Put it in `CLOUDFLARE_ACCESS_SETUP_TOKEN` in the ignored `backend/.dev.vars`, then run `node scripts/configure-cloudflare-access.mjs` from the root. It creates an admin-only application allowing `vertcorpgroup@gmail.com`, saves its AUD locally, and leaves device/payment routes public. Deploy the Worker afterward and revoke the temporary token. This token is never uploaded to the Worker.
 
 ## Payment-free test account
 
