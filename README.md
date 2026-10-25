@@ -81,4 +81,4 @@ Brave's actual blocker is the Rust `adblock-rust` engine, not a JavaScript snipp
 
 ## Verification
 
-`cd backend && npm test` runs 20 tests covering signature canonicalization, token hashing, safe URL handling, HTML escaping, successful verified ITN activation, duplicate ITN idempotency and wrong-amount rejection. Worker request tests cover authorization and rejection paths. Use `npx wrangler deploy --dry-run` to validate the Worker bundle. Schema is in `backend/migrations/`. No APK or successful live payment should be claimed until Android build/device and Payfast sandbox tests pass.
+`cd backend && npm test` runs 21 tests covering signature canonicalization, token hashing, safe URL handling, HTML escaping, successful verified ITN activation, duplicate ITN idempotency and wrong-amount rejection. Worker request tests cover authorization and rejection paths. Use `npx wrangler deploy --dry-run` to validate the Worker bundle. Schema is in `backend/migrations/`. No APK or successful live payment should be claimed until Android build/device and Payfast sandbox tests pass.

@@ -87,7 +87,9 @@ async function handle(request,env) {
   return json({token:secret,checkoutUrl:`${env.PUBLIC_BASE_URL}/checkout?ticket=${checkout}`});
  }
  if(path==='/api/activation/checkout' && request.method==='POST') {
-  originCheck(request); payfast(env); const d=await device(request,env);
+  originCheck(request); const d=await device(request,env);
+  if(env.EXEMPT_EMAIL && d.email===env.EXEMPT_EMAIL.toLowerCase()) return json({requiresActivationCode:true});
+  payfast(env);
   const order=await env.DB.prepare('SELECT id FROM orders WHERE activation_id=? AND paid=0 LIMIT 1').bind(d.id).first();
   if(!order) fail(409,'No pending payment'); const checkout=token();
   await env.DB.prepare('INSERT INTO checkout_tickets(ticket_hash,order_id,expires_at) VALUES(?,?,?)').bind(hash(checkout),order.id,Date.now()+30*60*1000).run();
