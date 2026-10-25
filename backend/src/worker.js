@@ -1,3 +1,4 @@
+import { buildTwoEmbedURL, twoEmbedCatalogue, twoEmbedMetadata, twoEmbedSeason, mediaID, episodeNumber, defaultTVSeason, readMedia } from './twoembed.js';
 import { buildVidSrcURL, checkVidSrcFeeds } from './vidsrc.js';
 import { ACTIVATION_AMOUNT_CENTS, formatAmount, moneyToCents } from './billing.js';
 import { authRoute, currentUser, originCheck, ADMIN_EMAILS } from './auth.js';
@@ -37,6 +38,26 @@ async function handle(request,env) {
  if(path.startsWith('/api/admin/') || path==='/admin' || path.startsWith('/admin/')) {
   const owner=await admin(request,env); if(!['GET','HEAD','OPTIONS'].includes(request.method))originCheck(request);
   if(path==='/admin' || path==='/admin/') return env.ASSETS.fetch(new Request(new URL('/admin',u),request));
+  if(path==='/api/admin/2embed/catalog' && request.method==='GET'){
+   const input=Object.fromEntries(u.searchParams);
+   if(input.mode==='id')return json({page:1,totalPages:1,items:[await twoEmbedMetadata(input.mediaType,input.mediaId)]});
+   return json(await twoEmbedCatalogue(input));
+  }
+  if(path==='/api/admin/2embed/preview' && request.method==='POST')return json({url:buildTwoEmbedURL(await request.json())});
+  if(path==='/api/admin/2embed/import' && request.method==='POST'){
+   const body=await request.json();if(!Array.isArray(body.entries)||body.entries.length<1||body.entries.length>10)fail(400,'Select between 1 and 10 titles');
+   const entries=body.entries.map(e=>{if(!e||!['movie','tv'].includes(e.mediaType))fail(400,'Invalid media type');return {type:e.mediaType,id:mediaID(e.mediaId)}});
+   const category=typeof body.category==='string'?body.category.trim().slice(0,100):'';
+   const imported=[],skipped=[],failed=[],queue=[...new Map(entries.map(e=>[e.type+':'+e.id,e])).values()];
+   async function consume(){while(queue.length){const entry=queue.shift();try{
+    const item=await twoEmbedMetadata(entry.type,entry.id),id='2embed-'+item.type+'-'+item.id;
+    if(await env.DB.prepare('SELECT id FROM content WHERE id=?').bind(id).first()){skipped.push({id,title:item.title});continue;}
+    const url=buildTwoEmbedURL({mediaType:item.type,mediaId:item.id,season:defaultTVSeason(item),episode:1});
+    const saved=await env.DB.prepare('INSERT OR IGNORE INTO content(id,title,category,url,kind,metadata_json) VALUES(?,?,?,?,?,?)').bind(id,item.title,category||(item.type==='tv'?'TV Shows':'Movies'),url,'link',JSON.stringify(item)).run();
+    if(Number(saved.meta?.changes??saved.changes)===0)skipped.push({id,title:item.title});else imported.push({id,title:item.title});
+   }catch(error){failed.push({id:entry.id,error:error.status?error.message:'Provider import failed'})}}}
+   await Promise.all([consume(),consume(),consume()]);return json({imported,skipped,failed});
+  }
   if(path==='/api/admin/vidsrc/feeds' && request.method==='GET')return json(await checkVidSrcFeeds());
   if(['/api/admin/vidsrc/preview','/api/admin/vidsrc/publish'].includes(path) && request.method==='POST'){
    const body=await request.json(),url=buildVidSrcURL(body);
@@ -56,7 +77,8 @@ async function handle(request,env) {
    const current=await env.DB.prepare('SELECT * FROM content WHERE id=?').bind(id).first(); if(!current) fail(404,'Title not found');
    if(!b.title?.trim() || !b.category?.trim() || (!current.object_key && !httpsURL(b.url))) fail(400,'Title, category and HTTPS URL required');
    const kind=current.object_key?'link':b.kind??current.kind??'link';if(!['link','collection'].includes(kind))fail(400,'Choose a single title or library collection');
-   await env.DB.prepare('UPDATE content SET title=?,category=?,url=?,kind=? WHERE id=?').bind(b.title.trim().slice(0,200),b.category.trim().slice(0,100),current.object_key?null:b.url,kind,id).run();
+   const metadata=kind==='link'&&!current.object_key&&b.url===current.url?current.metadata_json||null:null;
+   await env.DB.prepare('UPDATE content SET title=?,category=?,url=?,kind=?,metadata_json=? WHERE id=?').bind(b.title.trim().slice(0,200),b.category.trim().slice(0,100),current.object_key?null:b.url,kind,metadata,id).run();
    return json({ok:true});
   }
   if(path.startsWith('/api/admin/content/') && request.method==='DELETE') { await env.DB.prepare('DELETE FROM content WHERE id=?').bind(path.split('/').pop()).run(); return json({ok:true}); }
@@ -148,12 +170,21 @@ async function handle(request,env) {
  }
  if(path==='/api/get_links.json') {
   await device(request,env,true);
-  const {results}=await env.DB.prepare('SELECT * FROM content WHERE published=1 ORDER BY category,title').all();
+  const {results}=await env.DB.prepare('SELECT * FROM content WHERE published=1 ORDER BY CASE WHEN metadata_json IS NOT NULL THEN 0 ELSE 1 END,category,title').all();
   const items=await Promise.all(results.map(async x=>{
-   if(!x.object_key) return {id:x.id,title:x.title,category:x.category,url:x.url,kind:x.kind||'link'};
+   if(!x.object_key) return {id:x.id,title:x.title,category:x.category,url:x.url,kind:x.kind||'link',media:readMedia(x.metadata_json)};
    const access=token(); await env.DB.prepare('INSERT INTO media_tickets(ticket_hash,content_id,expires_at) VALUES(?,?,?)').bind(hash(access),x.id,Date.now()+6*3600000).run();
    return {id:x.id,title:x.title,category:x.category,url:`${env.PUBLIC_BASE_URL}/watch/${x.id}?ticket=${access}`,kind:'link'};
   })); return json({items});
+ }
+ const episodePath=path.match(/^\/api\/content\/([^/]+)\/episodes$/);
+ if(episodePath && request.method==='GET'){
+  await device(request,env,true);let id;try{id=decodeURIComponent(episodePath[1])}catch{fail(400,'Invalid content ID')}
+  const record=await env.DB.prepare('SELECT * FROM content WHERE id=? AND published=1').bind(id).first(),details=readMedia(record?.metadata_json);
+  if(!record||details?.type!=='tv')fail(404,'TV series not found');
+  const season=episodeNumber(u.searchParams.get('season')??defaultTVSeason(details));
+  if(details.seasons?.length&&!details.seasons.some(s=>s.number===season))fail(400,'Choose one of this series’ listed seasons');
+  return json({id:record.id,title:record.title,seasons:details.seasons,...await twoEmbedSeason(details.id,season)});
  }
  const media=path.match(/^\/(watch|media)\/([^/]+)$/);
  if(media) {

@@ -81,7 +81,7 @@ An hourly scheduled handler removes expired playback/checkout tickets, sessions 
 
 ## Verification
 
-`cd backend && npm test` runs 43 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
+`cd backend && npm test` runs 51 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
 
 Current verification: Android version 1.4 compiled in GitHub Actions run 40225715630. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
 
@@ -104,3 +104,7 @@ R399 verification: 37 backend tests pass. Live welcome/account pages and the gen
 ## VidSrc title publishing
 
 Admin studio now supports previewing and publishing individual VidSrc movie/episode embeds by IMDb/TMDB ID, with optional subtitle JSON. Existing Dulo collections remain. The advertised catalogue feeds returned 404 during testing, so automatic catalogue import is unavailable; use Check catalogue feeds to recheck. Previewing a page does not prove video playback. See `docs/vidsrc-integration.md` for endpoints, provider observations and usage.
+
+## 2Embed metadata catalogue
+
+Admin studio now includes a 2Embed catalogue browser with search, trending, ID lookup, similar titles, preview and selected imports. Imported movies/shows include posters and metadata; TV users choose a season/episode in Vert TV on web or Android TV. Imports preserve existing content and skip duplicates. The supplied complete-season player endpoints returned 404, so individual episode embeds are used. See `docs/2embed-integration.md`.
