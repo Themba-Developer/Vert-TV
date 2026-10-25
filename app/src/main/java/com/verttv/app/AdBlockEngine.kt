@@ -46,7 +46,8 @@ object AdBlockEngine {
         scope.launch {
             try {
                 if(NativeAdblock.available)ready=NativeAdblock.initialize(readRules(app))
-            }catch(_: Exception){ ready=false }
+            }catch(_: LinkageError){ ready=false }
+            catch(_: Exception){ ready=false }
             finally { initialized.complete(ready) }
             if(ready)refresh(app,false)
         }

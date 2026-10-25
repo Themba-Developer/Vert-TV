@@ -19,6 +19,9 @@ class LibraryActivity : ViewerActivity() {
             override val filteringEnabled: Boolean get()=!payment
             override fun shouldOverrideUrlLoading(view: WebView,request: android.webkit.WebResourceRequest): Boolean {
                 val uri=request.url
+                if(request.isForMainFrame&&uri.scheme=="https"&&uri.host==android.net.Uri.parse(base).host&&uri.path in listOf("/app","/account","/login","/signup")&&uri.getQueryParameter("native")!="1"){
+                    view.loadUrl(uri.buildUpon().appendQueryParameter("native","1").build().toString());return true
+                }
                 if(request.isForMainFrame&&uri.scheme=="https"&&uri.host==android.net.Uri.parse(base).host&&uri.path=="/native/settings"){
                     syncSession();startActivity(android.content.Intent(this@LibraryActivity,SettingsActivity::class.java));return true
                 }

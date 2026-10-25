@@ -82,6 +82,7 @@ mod tests {
         let rules=[include_str!("../../../app/src/main/assets/adblock/easylist.txt"),include_str!("../../../app/src/main/assets/adblock/easyprivacy.txt"),include_str!("../../../app/src/main/assets/adblock/vert-rules.txt")].join("\n");
         let engine=engine_from(&rules);
         assert!(blocks(&engine,"https://googleads.g.doubleclick.net/pagead/id","https://dulo.mov","xmlhttprequest","get"));
+        assert!(!blocks(&engine,"https://dulo.mov/movies/?shelf=popular","https://vert-tv.mahlangu843.workers.dev","subdocument","get"),"Embedded Dulo catalogue must load");
         for (url,kind) in [("https://api.themoviedb.org/3/movie/popular","xmlhttprequest"),("https://image.tmdb.org/t/p/w342/poster.jpg","image")]{assert!(!blocks(&engine,url,"https://dulo.mov",kind,"get"),"Catalogue request must load: {url}");}
         for url in ["https://dulo.mov/","https://dulo.mov/watch/movie/609681","https://www.payfast.co.za/eng/process","https://payment.payfast.io/eng/process/payment/test","https://vert-tv.mahlangu843.workers.dev/api/get_links.json"] {
             assert!(!blocks(&engine,url,url,"document","get"),"Must allow {url}");

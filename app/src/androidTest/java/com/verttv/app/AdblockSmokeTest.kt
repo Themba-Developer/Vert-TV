@@ -14,6 +14,15 @@ class AdblockSmokeTest {
         val context=instrumentation.targetContext
         val tvIntent=android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_LEANBACK_LAUNCHER).setPackage(context.packageName)
         assertNotNull("App must be visible to the TV home launcher",context.packageManager.resolveActivity(tvIntent,0))
+        val cookieReady=java.util.concurrent.CountDownLatch(1)
+        var cookie=""
+        instrumentation.runOnMainSync {
+            android.webkit.CookieManager.getInstance().setCookie("https://vert-cookie-test.invalid","__Host-vert_session=fixture; Secure; HttpOnly; Path=/; SameSite=Lax"){
+                cookie=android.webkit.CookieManager.getInstance().getCookie("https://vert-cookie-test.invalid").orEmpty();cookieReady.countDown()
+            }
+        }
+        assertTrue("Native login cookie must be accepted",cookieReady.await(10,java.util.concurrent.TimeUnit.SECONDS))
+        assertTrue("Native session synchronization must retain HttpOnly cookies",cookie.contains("__Host-vert_session=fixture"))
         assertTrue("Native ABI library must load",NativeAdblock.available)
         assertTrue("Bundled lists must initialize offline",AdBlockEngine.awaitReady(context))
         assertTrue(NativeAdblock.shouldBlock("https://googleads.g.doubleclick.net/pagead/id","https://dulo.mov","xmlhttprequest","get"))
