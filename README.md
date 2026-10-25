@@ -83,9 +83,9 @@ An hourly scheduled handler removes expired playback/checkout tickets, sessions 
 
 `cd backend && npm test` runs 37 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
 
-Current verification: Android version 1.3 compiled in GitHub Actions run 40222134457. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
+Current verification: Android version 1.4 compiled in GitHub Actions run 40225715630. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
 
-Current APK SHA-256: `40ea3dfe24ed4b03134db43952aeb09bc135c868ae8f964f3b24264531bcaa95`.
+Current APK SHA-256: `c4f5574f354281a3a6e647eae9c3d8eb9cb10256d2bf26c28464fffa0a5fed8a`.
 
 The browser player fills the viewport, requests browser fullscreen on selection where supported, and shows only a small Back to library overlay. The Back overlay returns to the library and stops the embedded page; Escape and parent-page Back navigation are also handled. The iframe sandbox blocks popup windows and top-level navigation; source-site branding remains controlled by that site.
 
@@ -98,3 +98,5 @@ Collection tiles open the section directly in the existing edge-to-edge internal
 The owner explicitly retained R399 activation for normal accounts; free access for the two reserved admin accounts is unchanged. The welcome `/` URL and separate `/app` URL are unchanged.
 
 Pricing is R399 for all newly generated checkout sessions. All application order inserts explicitly store `amount_cents=39900`; the historical default in migration 0001 is retained unchanged. An already issued, unexpired R199 ticket remains at its stored quoted amount, and verified ITNs are checked against that exact order amount. Starting or resuming checkout after the price update creates/reuses an R399 order. Previous payments and free-admin exemptions are preserved.
+
+R399 verification: 37 backend tests pass. Live welcome/account pages and the generated signed Payfast form were checked at R399.00 using a temporary unpaid account, without submitting payment. The temporary account, order, ticket and sessions were removed. Android 1.4 includes the R399 welcome copy. Ad filtering remains limited to the native content viewer; browser iframe playback blocks popups/top navigation but does not filter in-page ads.
