@@ -17,7 +17,7 @@ async function call(url,body){
 const paths=['vert-tv.mahlangu843.workers.dev/admin','vert-tv.mahlangu843.workers.dev/api/admin'];
 const apps=await call(api);
 let app=apps.find(a=>a.name==='Vert TV Admin'&&a.domain===paths[0]);
-if(!app)app=await call(api,{name:'Vert TV Admin',type:'self_hosted',domain:paths[0],self_hosted_domains:paths,session_duration:'24h',app_launcher_visible:true,policies:[{name:'Vert TV administrator',decision:'allow',include:[{email:{email:'vertcorpgroup@gmail.com'}}],precedence:1}]});
+if(!app)app=await call(api,{name:'Vert TV Admin',type:'self_hosted',domain:paths[0],self_hosted_domains:paths,session_duration:'24h',app_launcher_visible:true,policies:[{name:'Vert TV administrator',decision:'allow',include:[{email:{email:'vertcorpgroup@gmail.com'}},{email:{email:'mahlangu843@gmail.com'}}],precedence:1}]});
 if(!app.aud)throw new Error('Cloudflare did not return an application audience.');
 config.vars.CF_ACCESS_AUD=app.aud;
 await writeFile(configPath,JSON.stringify(config,null,2)+'\n');

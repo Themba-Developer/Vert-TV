@@ -25,6 +25,16 @@ class MainActivity : FragmentActivity() {
             }
         }
     }
+    @Deprecated("Android TV back navigation")
+    override fun onBackPressed() {
+        val form = findViewById<android.view.View>(R.id.activation_form)
+        val welcome = findViewById<android.view.View>(R.id.welcome_copy)
+        if (form?.visibility == android.view.View.VISIBLE && welcome != null) {
+            form.visibility = android.view.View.GONE
+            welcome.visibility = android.view.View.VISIBLE
+            findViewById<Button>(R.id.open_activation).requestFocus()
+        } else super.onBackPressed()
+    }
     private fun activation(message: String? = null) {
         setContentView(R.layout.activity_main)
         val email = findViewById<EditText>(R.id.email)
@@ -56,6 +66,15 @@ class MainActivity : FragmentActivity() {
                 finally { button.isEnabled = true }
             }
         }
-        email.requestFocus()
+        val welcome = findViewById<android.view.View>(R.id.welcome_copy)
+        val form = findViewById<android.view.View>(R.id.activation_form)
+        fun showForm() {
+            welcome.visibility = android.view.View.GONE
+            form.visibility = android.view.View.VISIBLE
+            email.requestFocus()
+        }
+        findViewById<Button>(R.id.open_activation).setOnClickListener { showForm() }
+        if (message != null || email.text.isNotBlank()) showForm()
+        else findViewById<Button>(R.id.open_activation).requestFocus()
     }
 }

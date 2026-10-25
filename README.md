@@ -8,7 +8,7 @@ https://vert-tv.mahlangu843.workers.dev
 
 Test APK download: https://vert-tv.mahlangu843.workers.dev/downloads/vert-tv-debug.apk
 
-D1 and private R2 are provisioned and migrations applied. Payfast credentials and live mode are configured. Admin authentication is configured through `cold-sunset-0330.cloudflareaccess.com`, with the application audience saved in `CF_ACCESS_AUD`. The Access policy permits only `vertcorpgroup@gmail.com` on `/admin` and `/api/admin` and their subpaths.
+D1 and private R2 are provisioned and migrations applied. Payfast credentials and live mode are configured. Admin authentication is configured through `cold-sunset-0330.cloudflareaccess.com`, with the application audience saved in `CF_ACCESS_AUD`. The Access policy permits only `vertcorpgroup@gmail.com` and verified Cloudflare owner `mahlangu843@gmail.com` on `/admin` and `/api/admin` and their subpaths.
 
 ## Status
 
@@ -67,7 +67,7 @@ Test successful payment, cancellation, delayed ITN, forged/duplicate ITN, incorr
 
 ## Access setup delegation
 
-To delegate admin Access application setup, create a temporary Cloudflare API token scoped to this account with `Access: Apps and Policies` Edit permission. Put it in `CLOUDFLARE_ACCESS_SETUP_TOKEN` in the ignored `backend/.dev.vars`, then run `node scripts/configure-cloudflare-access.mjs` from the root. It creates an admin-only application allowing `vertcorpgroup@gmail.com`, saves its AUD locally, and leaves device/payment routes public. Deploy the Worker afterward and revoke the temporary token. This token is never uploaded to the Worker.
+To delegate admin Access application setup, create a temporary Cloudflare API token scoped to this account with `Access: Apps and Policies` Edit permission. Put it in `CLOUDFLARE_ACCESS_SETUP_TOKEN` in the ignored `backend/.dev.vars`, then run `node scripts/configure-cloudflare-access.mjs` from the root. It creates an admin-only application allowing `vertcorpgroup@gmail.com` and verified Cloudflare owner `mahlangu843@gmail.com`, saves its AUD locally, and leaves device/payment routes public. Deploy the Worker afterward and revoke the temporary token. This token is never uploaded to the Worker.
 
 ## Payment-free test account
 
