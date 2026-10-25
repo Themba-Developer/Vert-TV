@@ -1,27 +1,36 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { authRoute, currentUser, originCheck, ADMIN_EMAILS } from './auth.js';
 import { hash, signature, canonical, equal, httpsURL, escapeHTML } from './security.js';
 const json = (value,status=200) => Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const fail = (status,message) => { throw Object.assign(new Error(message),{status}); };
 const token = () => crypto.randomUUID()+crypto.randomUUID();
-const jwks = new Map();
 async function admin(request,env) {
- if(!env.CF_ACCESS_TEAM_DOMAIN || !env.CF_ACCESS_AUD) fail(503,'Configure Cloudflare Access before using admin');
- const domain=env.CF_ACCESS_TEAM_DOMAIN;
- if(!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(domain)) fail(503,'Invalid Access team domain');
- const assertion=request.headers.get('Cf-Access-Jwt-Assertion'); if(!assertion) fail(401,'Sign in through Cloudflare Access');
- if(!jwks.has(domain)) jwks.set(domain,createRemoteJWKSet(new URL(`https://${domain}/cdn-cgi/access/certs`)));
- try { const {payload}=await jwtVerify(assertion,jwks.get(domain),{issuer:`https://${domain}`,audience:env.CF_ACCESS_AUD}); return payload.sub; }
- catch { fail(403,'Invalid admin identity'); }
+ const user=await currentUser(request,env);
+ if(!user) fail(401,'Please sign in');
+ if(user.role!=='admin') fail(403,'Administrator account required');
+ return user.id;
 }
 async function device(request,env,active=false) {
+ const account=await currentUser(request,env);
+ if(account){if(active && !account.active && !account.payment_exempt)fail(403,'Payment required');return {...account,active:account.active||account.payment_exempt};}
  const bearer=request.headers.get('Authorization')?.replace(/^Bearer /,'');
  const record=bearer && await env.DB.prepare('SELECT * FROM activations WHERE token_hash=?').bind(hash(bearer)).first();
  if(!record) fail(401,'Activation token required'); if(active && !record.active) fail(403,'Payment required'); return record;
 }
-function originCheck(request) { const origin=request.headers.get('Origin'); if(origin && origin!==new URL(request.url).origin) fail(403,'Cross-origin request denied'); }
 function payfast(env) { if(!env.PAYFAST_MERCHANT_ID || !env.PAYFAST_MERCHANT_KEY || !env.PAYFAST_PASSPHRASE) fail(503,'Payfast credentials are not configured yet'); return env.PAYFAST_SANDBOX==='true'?'https://sandbox.payfast.co.za':'https://www.payfast.co.za'; }
 async function handle(request,env) {
  const u=new URL(request.url), path=u.pathname;
+ if(path.startsWith('/api/auth/')) return authRoute(request,env,path);
+ if(['/login','/signup','/account','/app'].includes(path)) return env.ASSETS.fetch(new Request(new URL('/auth.html',u),request));
+ if(path==='/api/billing/checkout' && request.method==='POST') {
+  originCheck(request);const user=await currentUser(request,env);if(!user)fail(401,'Please sign in');
+  if(user.active||user.payment_exempt)return json({active:true});
+  payfast(env);
+  let order=await env.DB.prepare('SELECT id FROM orders WHERE activation_id=? AND paid=0 ORDER BY rowid DESC LIMIT 1').bind(user.id).first();
+  if(!order){const id=crypto.randomUUID();await env.DB.prepare('INSERT INTO orders(id,activation_id,user_id) VALUES(?,?,?)').bind(id,user.id,user.id).run();order={id};}
+  const ticket=token();await env.DB.prepare('INSERT INTO checkout_tickets(ticket_hash,order_id,expires_at) VALUES(?,?,?)').bind(hash(ticket),order.id,Date.now()+30*60000).run();
+  return json({checkoutUrl:`${env.PUBLIC_BASE_URL}/checkout?ticket=${ticket}`});
+ }
+ if((path==='/admin'||path==='/admin/')&&!await currentUser(request,env))return Response.redirect(new URL('/login?next=/admin',u),302);
  if(path==='/api/health') return json({ok:true,service:'Vert TV',paymentsConfigured:!!(env.PAYFAST_MERCHANT_ID && env.PAYFAST_MERCHANT_KEY && env.PAYFAST_PASSPHRASE),paymentMode:env.PAYFAST_SANDBOX==='true'?'sandbox':'live'});
  if(path.startsWith('/api/admin/') || path==='/admin' || path.startsWith('/admin/')) {
   const owner=await admin(request,env); originCheck(request);
@@ -66,12 +75,12 @@ async function handle(request,env) {
   }
   fail(404,'Admin route not found');
  }
- // Never expose the static admin document without Access validation.
+ // The admin document is served only after account-role checks.
  if(path==='/admin.html') fail(404,'Not found');
  if(path==='/api/activation/start' && request.method==='POST') {
   originCheck(request);
   const b=await request.json(), email=String(b.email||'').trim().toLowerCase(); if(email.length>254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400,'Valid email required');
-  if(env.EXEMPT_EMAIL && email===env.EXEMPT_EMAIL.toLowerCase()) {
+  if(ADMIN_EMAILS.has(email) || (env.EXEMPT_EMAIL && email===env.EXEMPT_EMAIL.toLowerCase())) {
    if(!b.activationCode) return json({requiresActivationCode:true});
    if(!env.EXEMPT_CODE_HASH || !equal(hash(String(b.activationCode).trim()),env.EXEMPT_CODE_HASH)) fail(403,'Invalid private activation code');
    const id=crypto.randomUUID(), secret=token();
@@ -88,7 +97,7 @@ async function handle(request,env) {
  }
  if(path==='/api/activation/checkout' && request.method==='POST') {
   originCheck(request); const d=await device(request,env);
-  if(env.EXEMPT_EMAIL && d.email===env.EXEMPT_EMAIL.toLowerCase()) return json({requiresActivationCode:true});
+  if(ADMIN_EMAILS.has(d.email) || (env.EXEMPT_EMAIL && d.email===env.EXEMPT_EMAIL.toLowerCase())) return json({requiresActivationCode:true});
   payfast(env);
   const order=await env.DB.prepare('SELECT id FROM orders WHERE activation_id=? AND paid=0 LIMIT 1').bind(d.id).first();
   if(!order) fail(409,'No pending payment'); const checkout=token();
@@ -143,11 +152,11 @@ async function handle(request,env) {
   if(object.range && 'offset' in object.range) {status=206;h.set('Content-Range',`bytes ${object.range.offset}-${object.range.offset+object.range.length-1}/${object.size}`);h.set('Content-Length',String(object.range.length));} else h.set('Content-Length',String(object.size));
   return new Response(request.method==='HEAD'?null:object.body,{status,headers:h});
  }
- if(path.startsWith('/payment/')) return new Response('Return to Vert TV. Activation occurs only after verified payment notification.',{headers:{'Content-Type':'text/plain'}});
+ if(path.startsWith('/payment/')) return Response.redirect(new URL('/account?payment=returned',u),302);
  if(path.startsWith('/api/')) fail(404,'Not found');
  return env.ASSETS.fetch(request);
 }
 export default {
  async fetch(request,env) { try {return await handle(request,env);} catch(e) {if(!e.status) console.error('Request failed',e.name); return json({error:e.status?e.message:'Service temporarily unavailable'},e.status||500);} },
- async scheduled(event,env) { await env.DB.batch([env.DB.prepare('DELETE FROM checkout_tickets WHERE expires_at<?').bind(Date.now()),env.DB.prepare('DELETE FROM media_tickets WHERE expires_at<?').bind(Date.now())]); }
+ async scheduled(event,env) { await env.DB.batch([env.DB.prepare('DELETE FROM checkout_tickets WHERE expires_at<?').bind(Date.now()),env.DB.prepare('DELETE FROM media_tickets WHERE expires_at<?').bind(Date.now()),env.DB.prepare('DELETE FROM sessions WHERE expires_at<?').bind(Date.now()),env.DB.prepare('DELETE FROM auth_rate_limits WHERE window_start<?').bind(Date.now()-86400000)]); }
 };

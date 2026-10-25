@@ -1,19 +1,22 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#070C14">
 <com.verttv.app.MotionBackdropView android:layout_width="match_parent" android:layout_height="match_parent"/>
-<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="48dp" android:gravity="center_vertical">
+<ScrollView android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true"><LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="40dp" android:gravity="center_vertical">
 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="VERT TV" android:textSize="30sp" android:textStyle="bold" android:letterSpacing="0.12" android:textColor="#73EDB1" android:layout_marginBottom="20dp"/>
 <LinearLayout android:id="@+id/welcome_copy" android:layout_width="520dp" android:layout_height="wrap_content" android:orientation="vertical">
 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Your next great\nwatch starts here." android:textSize="40sp" android:textStyle="bold" android:lineSpacingExtra="2dp" android:textColor="#FFFFFF"/>
 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Movies. Series. A world to discover." android:textSize="20sp" android:textColor="#D1DBE5" android:layout_marginTop="16dp"/>
 <Button android:id="@+id/open_activation" android:layout_width="340dp" android:layout_height="64dp" android:text="Activate Vert TV  →" android:textAllCaps="false" android:textSize="20sp" android:textStyle="bold" android:background="@drawable/primary_button" android:textColor="#071B12" android:layout_marginTop="28dp"/>
+<Button android:id="@+id/open_login" android:layout_width="340dp" android:layout_height="48dp" android:text="Already a member? Sign in" android:textAllCaps="false" android:background="@drawable/focus_card" android:textColor="#FFFFFF" android:layout_marginTop="12dp"/>
 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="R199 once-off activation. Your TV, ready to watch." android:textSize="16sp" android:textColor="#BCC8D8" android:layout_marginTop="14dp"/>
 </LinearLayout>
 <LinearLayout android:id="@+id/activation_form" android:layout_width="480dp" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
-<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Activate your TV." android:textSize="32sp" android:textStyle="bold" android:textColor="#FFFFFF"/>
+<TextView android:id="@+id/auth_heading" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Create your account." android:textSize="32sp" android:textStyle="bold" android:textColor="#FFFFFF"/>
 <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Enter your email to get started." android:textSize="18sp" android:layout_marginTop="12dp" android:textColor="#D1DBE5"/>
 <EditText android:id="@+id/email" android:layout_width="match_parent" android:layout_height="60dp" android:inputType="textEmailAddress" android:singleLine="true" android:hint="Email address" android:textColor="#FFFFFF" android:textColorHint="#BCC8D8" android:background="@drawable/focus_card" android:layout_marginTop="20dp"/>
-<EditText android:id="@+id/activation_code" android:layout_width="match_parent" android:layout_height="60dp" android:inputType="textPassword" android:singleLine="true" android:hint="Private activation code" android:visibility="gone" android:textColor="#FFFFFF" android:textColorHint="#BCC8D8" android:background="@drawable/focus_card" android:layout_marginTop="12dp"/>
+<EditText android:id="@+id/password" android:layout_width="match_parent" android:layout_height="60dp" android:inputType="textPassword" android:singleLine="true" android:hint="Password (12+ characters)" android:textColor="#FFFFFF" android:textColorHint="#BCC8D8" android:background="@drawable/focus_card" android:layout_marginTop="12dp"/>
+<EditText android:id="@+id/activation_code" android:layout_width="match_parent" android:layout_height="60dp" android:inputType="textPassword" android:singleLine="true" android:hint="Admin setup code (first signup only)" android:visibility="gone" android:textColor="#FFFFFF" android:textColorHint="#BCC8D8" android:background="@drawable/focus_card" android:layout_marginTop="12dp"/>
 <Button android:id="@+id/activate" android:layout_width="match_parent" android:layout_height="60dp" android:text="Continue" android:textAllCaps="false" android:textSize="20sp" android:background="@drawable/primary_button" android:textColor="#071B12" android:layout_marginTop="16dp"/>
+<Button android:id="@+id/switch_auth" android:layout_width="match_parent" android:layout_height="44dp" android:text="Already a member? Sign in" android:textAllCaps="false" android:background="@drawable/focus_card" android:textColor="#FFFFFF" android:layout_marginTop="8dp"/>
 </LinearLayout>
-</LinearLayout>
+</LinearLayout></ScrollView>
 </FrameLayout>

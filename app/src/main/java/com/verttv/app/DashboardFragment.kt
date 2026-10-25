@@ -19,7 +19,14 @@ class DashboardFragment : BrowseSupportFragment() {
         brandColor = Color.rgb(16,31,48)
         setOnSearchClickedListener { load() }
         setOnItemViewClickedListener { _, item, _, _ ->
-            if(item is ContentItem) startActivity(Intent(requireContext(), ViewerActivity::class.java).putExtra("url", item.url))
+            if(item is ContentItem && item.url == "vert:logout") {
+                lifecycleScope.launch {
+                    val api = Api(requireContext())
+                    try { api.request("/api/auth/logout", org.json.JSONObject()) } catch (_: Exception) {}
+                    api.prefs.edit().clear().apply()
+                    startActivity(Intent(requireContext(), MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                }
+            } else if(item is ContentItem) startActivity(Intent(requireContext(), ViewerActivity::class.java).putExtra("url", item.url))
         }
         load()
     }
@@ -38,6 +45,9 @@ class DashboardFragment : BrowseSupportFragment() {
                 entry.value.forEach { cards.add(it) }
                 rows.add(ListRow(HeaderItem(index.toLong(), entry.key), cards))
             }
+            val account = ArrayObjectAdapter(CardPresenter())
+            account.add(ContentItem("Sign out", "Account", "vert:logout"))
+            rows.add(ListRow(HeaderItem(9999L, "Account"), account))
             adapter = rows
             title = if(groups.isEmpty()) "VERT TV • Your library is coming soon" else "VERT TV"
         } catch(e: Exception) { title = "Connection failed • Select search to retry" }

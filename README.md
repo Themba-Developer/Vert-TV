@@ -1,92 +1,84 @@
 # Vert TV
 
-Native Kotlin Android TV shell plus a Cloudflare Worker, D1 activation database, private R2 movie storage, and a Cloudflare Access admin studio.
+Native Kotlin Android TV app plus a separate web app, email/password accounts, a Cloudflare Worker, D1 database, private R2 movies and Payfast once-off account activation.
 
-## Live test backend
+## Links
 
-https://vert-tv.mahlangu843.workers.dev
+- Welcome page: https://vert-tv.mahlangu843.workers.dev
+- Web app (no Android TV required): https://vert-tv.mahlangu843.workers.dev/app
+- Create account: https://vert-tv.mahlangu843.workers.dev/signup
+- User login: https://vert-tv.mahlangu843.workers.dev/login
+- Admin login: https://vert-tv.mahlangu843.workers.dev/login?next=/admin
+- Admin dashboard: https://vert-tv.mahlangu843.workers.dev/admin
+- Android APK: https://vert-tv.mahlangu843.workers.dev/downloads/vert-tv-debug.apk
 
-Test APK download: https://vert-tv.mahlangu843.workers.dev/downloads/vert-tv-debug.apk
+The welcome URL and cinematic design are preserved. `/app` provides the real account/payment/library/player functionality in a browser. It uses the same backend and account entitlement as Android TV. Uploaded R2 movies play in the first-party player; third-party pages may prohibit embedding, in which case the player offers Open source. Native WebView ad filtering does not apply to the browser web app.
 
-D1 and private R2 are provisioned and migrations applied. Payfast credentials and live mode are configured. Admin authentication is configured through `cold-sunset-0330.cloudflareaccess.com`, with the application audience saved in `CF_ACCESS_AUD`. The Access policy permits only `vertcorpgroup@gmail.com` and verified Cloudflare owner `mahlangu843@gmail.com` on `/admin` and `/api/admin` and their subpaths.
+## Accounts and free admins
 
-## Status
+Users create an account using email and a password of 12–128 characters. Unpaid accounts can activate once for R199 with Payfast. After a verified ITN, the same account can sign in on another device without another payment. Navigating a payment return URL alone never unlocks access.
 
-Android debug APK compiled successfully in GitHub Actions (run 40221009840). Device/emulator playback and Payfast end-to-end verification are still pending. Local Android compilation requires JDK 17 and Android SDK 35. Payfast live mode is configured at the owner’s request. A real payment and ITN still require end-to-end verification with production credentials. No production credentials are checked in. A browser test URL serves the backend/landing page and admin studio; it cannot run a native Android APK.
+These two reserved emails receive the admin role and automatic payment exemption:
+
+- `vertcorpgroup@gmail.com`
+- `mahlangu843@gmail.com`
+
+Their first signup also requires the private `EXEMPT_ACCESS_CODE` from the ignored `backend/.dev.vars` file. This proves authorization to claim a reserved admin identity. After signup, login uses only email/password. Arbitrary signup fields cannot grant roles or payment exemption. Cloudflare is hosting infrastructure only; Cloudflare Access login has been retired. Do not run the legacy Access setup helper to re-enable the old gate.
+
+Passwords are HMAC-peppered and hashed with salted PBKDF2-SHA512 (100,000 iterations, within the Workers WebCrypto cap). The pepper is a Worker secret, separate from D1. Preserve `AUTH_PEPPER`; changing it invalidates password verification for existing accounts. Passwords, session tokens and setup tokens must never be committed or printed.
+
+Browser sessions use `__Host-vert_session` Secure, HttpOnly, SameSite=Lax cookies. Admin browser sessions expire in 12 hours, user browser sessions in 30 days, and TV bearer sessions in 180 days. Only token hashes are stored in D1. Logout revokes the session server-side. Authentication attempts are limited by IP and account email in D1. Mutations reject cross-origin browser requests. Email delivery, email verification for ordinary users and forgotten-password delivery are not yet configured; reserved administrator accounts are protected by the private setup code.
+
+Existing legacy device activation tokens remain accepted so earlier installations are not abruptly revoked. When creating an account from a legacy paid TV, the existing bearer token can prove and carry forward that device entitlement. New installations use email/password accounts. Older free activation by private code remains for compatibility; it does not grant admin session access.
 
 ## Android Studio / VS Code
 
-Open this root folder in Android Studio, install JDK 17 and SDK 35, and sync Gradle. The project uses Android Gradle Plugin 8.9.2 and Gradle 8.11.1. If the wrapper is absent, generate it with `gradle wrapper --gradle-version 8.11.1`. Set the API URL in your ignored user Gradle properties or pass it when building:
+Open this root in Android Studio, install JDK 17 and Android SDK 35, and sync Gradle. Gradle 8.11.1 is included through the wrapper. AGP is 8.9.2; the default API URL already points to the test deployment.
 
 ```sh
-./gradlew assembleDebug -PVERT_API_URL=https://vert-tv.YOUR-SUBDOMAIN.workers.dev
+./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-VS Code can edit the same project; build through Gradle. Install Java/Kotlin extensions. The manifest declares both launcher categories, Leanback, touchscreen optional, Internet and network state permissions. `activity_main.xml` is activation, `MainActivity.kt` routes based on server activation, `PayfastActivity.kt` displays checkout and polls, `DashboardFragment.kt` provides native Leanback rows, and `ViewerActivity.kt` hosts HTTPS-only WebView playback with full-screen video support. D-pad cards use visible focus borders. Device token/email are persisted in private SharedPreferences with backup disabled. Every dashboard fetch checks the server; offline access is not granted.
+VS Code uses the same source and Gradle build. The manifest declares Leanback and standard launcher categories, no required touchscreen, Internet and network state. D-pad controls have focus states. `MainActivity.kt` handles signup/login and account activation; `PayfastActivity.kt` polls verified server entitlement; `DashboardFragment.kt` supplies native rows and sign-out; `ViewerActivity.kt` supplies secure HTTPS playback. Preferences persist email and bearer token with backup disabled, never passwords.
 
-## Cloudflare provisioning and public test link
+The welcome screen uses original poster art and slow local motion, with an Activate action and a Sign in action. The website supports paused/reduced motion. Artwork paths, provenance and the final image-generation prompt are in `docs/welcome-art.md`.
+
+## Backend provisioning
+
+D1 `vert-tv` and private R2 `vert-tv-movies` are provisioned. Apply all migrations in order; they preserve the existing content and activation records.
 
 ```sh
 cd backend
 npm ci
-npx wrangler whoami
-# If necessary: npx wrangler login
-npx wrangler d1 create vert-tv
-npx wrangler r2 bucket create vert-tv-movies
-```
-
-Paste the returned D1 `database_id` into `wrangler.jsonc`. Set `PUBLIC_BASE_URL` to your Worker hostname. Set `CF_ACCESS_TEAM_DOMAIN` to your team domain such as `yourteam.cloudflareaccess.com` and `CF_ACCESS_AUD` to the application audience tag. Never put secrets into `vars`.
-
-```sh
 npx wrangler d1 migrations apply vert-tv --remote
 npx wrangler secret put PAYFAST_MERCHANT_ID
 npx wrangler secret put PAYFAST_MERCHANT_KEY
 npx wrangler secret put PAYFAST_PASSPHRASE
+npx wrangler secret put AUTH_PEPPER
+npx wrangler secret put EXEMPT_CODE_HASH
 npm test
 npx wrangler deploy
 ```
 
-The APK download asset is intentionally ignored by Git. Before deploying from a clean checkout, build/download the debug APK and copy it to `backend/public/downloads/vert-tv-debug.apk` to preserve the homepage download link. The currently deployed APK SHA-256 is `225efe20564a2cc197fdeb9f079e0c4249c3d1fd5178ab1eab8e1ca48088193a`.
+`EXEMPT_CODE_HASH` is the SHA-256 hash of the private registration code, not its plaintext. The owner’s ignored editor file already contains the private code and password pepper. Use unique high-entropy values for another installation. `PUBLIC_BASE_URL` must match the deployed origin. No Cloudflare Access team or AUD is required for app login. Keep API setup tokens in the ignored editor file and revoke temporary tokens after use.
 
-Wrangler returns your real public `https://vert-tv.<subdomain>.workers.dev` link. Open `/` for the landing page, `/api/health` for health, and `/admin` for the admin studio. Do not invent a hostname before deployment. For local development use `.dev.vars` copied from `.dev.vars.example`, local D1 migrations (`npx wrangler d1 migrations apply vert-tv --local`) and `npm run dev`.
+For local development copy `backend/.dev.vars.example` to `.dev.vars`, fill the required values, apply local D1 migrations with `--local`, and run `npm run dev`. Use localhost development credentials and sandbox Payfast for local testing. The current production config intentionally sets `PAYFAST_SANDBOX=false` at the owner’s request. A real live payment/ITN is still pending owner verification.
 
-Configure Cloudflare Access self-hosted application policies for `/admin`, `/admin/*`, and `/api/admin/*`, allowing only your admin email/identity group. Configure Access protection on the workers.dev hostname if supported for your account, or use a custom domain for these routes. Leave payment notification, activation, catalog and media routes reachable by devices/Payfast. Worker code independently validates Access JWT issuer, audience, expiry and signature; without configuration the admin fails closed. Do not protect the entire hostname with Access, since TVs and Payfast cannot complete the admin sign-in flow.
+The APK download asset is ignored by Git. Before deploying a clean checkout, build or download its APK and copy it to `backend/public/downloads/vert-tv-debug.apk`. The GitHub Actions workflow compiles the APK, uploads an artifact, runs backend tests and bundles the Worker without deploying it.
 
-Set Cloudflare rate-limiting rules for `/api/activation/start` and API traffic before launch. Protect against checkout spam. Use a scheduled trigger (for example hourly) for the Worker's `scheduled` handler to remove expired playback/checkout tickets. Add an R2 bucket lifecycle rule to abort abandoned multipart uploads. R2 stays private; videos are served through time-limited six-hour playback URLs with byte-range support. Avoid logging ticket query strings in any external logging pipeline.
+## Payfast and storage
 
-## Payfast
+The backend creates the R199 order and signed checkout form. Merchant credentials and passphrase remain server-side. ITN verifies signature, merchant ID, Payfast source DNS/IP, server-to-server validation, order, exact gross amount and COMPLETE status. Unique payment IDs and duplicate checks provide idempotency. Authenticated browser and TV sessions read the shared activation anchor, so verified payment unlocks the whole account. Live merchant credential validity and real payment delivery require actual merchant testing.
 
-Enter the credentials for the selected Payfast environment in the ignored `backend/.dev.vars` file. After saving, run `node scripts/publish-payfast-secrets.mjs` from the root to transfer the three fields through stdin to Cloudflare Worker secrets without printing their values. Use `PAYFAST_SANDBOX=false` for production credentials; match the mode in `backend/wrangler.jsonc`.
+The admin can create/edit/remove links and upload MP4/WebM movies in 8 MiB multipart chunks, up to 50 GB. Completion checks object size and publishes into D1. R2 remains private; active accounts receive six-hour playback URLs with range support. Keep the upload tab open; cross-restart upload resume is not implemented. Configure an R2 lifecycle rule for abandoned multipart uploads. Removing a title retains its R2 object for deliberate storage retention; remove the object separately when desired.
 
-R199 is a once-off **device activation**, not a recurring subscription. Live mode is currently enabled at the owner’s request. Secrets belong only in Worker secrets or ignored `.dev.vars`. Checkout is a server-signed form, with a separate expiring checkout ticket. The app never sees merchant credentials or passphrase. ITN checks ordered signature, merchant ID, Payfast source DNS/IP, Payfast server validation, exact amount, matching server-created order and COMPLETE status. The payment ID is unique and duplicate notifications are idempotent. Return-page navigation never grants activation.
+An hourly scheduled handler removes expired playback/checkout tickets, sessions and stale login rate-limit counters. Avoid logging bearer credentials or playback query tickets in external logging systems.
 
-A freshly entered email does not restore another device's subscription: that would let anyone claim access by knowing a paid email address. Preserve the stored device token to resume an existing pending checkout/payment. Account recovery or multi-device licensing needs a verified email OTP or device-linking policy before release. Admin authentication uses Cloudflare Access; TV activation uses Cloudflare-hosted device tokens.
+## Ad filtering
 
-Test successful payment, cancellation, delayed ITN, forged/duplicate ITN, incorrect merchant/amount, network loss, app restart and token rejection in sandbox. Then set `PAYFAST_SANDBOX` to `false` and use production secrets. Confirm Payfast's current allowed notification source addresses and validation behavior with your merchant integration during sandbox testing; DNS source verification is intentionally strict.
-
-## Access setup delegation
-
-To delegate admin Access application setup, create a temporary Cloudflare API token scoped to this account with `Access: Apps and Policies` Edit permission. Put it in `CLOUDFLARE_ACCESS_SETUP_TOKEN` in the ignored `backend/.dev.vars`, then run `node scripts/configure-cloudflare-access.mjs` from the root. It creates an admin-only application allowing `vertcorpgroup@gmail.com` and verified Cloudflare owner `mahlangu843@gmail.com`, saves its AUD locally, and leaves device/payment routes public. Deploy the Worker afterward and revoke the temporary token. This token is never uploaded to the Worker.
-
-## Payment-free test account
-
-`vertcorpgroup@gmail.com` is exempt from payment. Enter that email in the latest TV APK, then supply the private `EXEMPT_ACCESS_CODE` from the ignored `backend/.dev.vars` file. Only a hash of that code is stored in Worker secrets. The server issues an active device token without creating a Payfast order. Existing activated devices continue using their tokens. Do not distribute the private code. This exception does not implement paid-email recovery for other users.
-
-## Admin movie workflow
-
-Sign in at `/admin`, add an HTTPS link with title/category, or choose MP4/WebM with title/category. Movies upload in 8 MiB multipart chunks up to 50 GB. Completion checks total object size and publishes into D1. Cancellation on errors attempts to abort incomplete uploads. Keep the tab open during upload; resumable uploads after browser restart are not implemented. External YouTube/embed URLs open inside the secure viewer; uploaded movies use a first-party HTML5 player. Codec compatibility depends on the Android TV device (H.264/AAC MP4 is generally the broadest option). Removing a title unpublishes it by deleting its D1 record; the original R2 object remains for deliberate storage retention and can be deleted separately in Cloudflare.
-
-## Ad filtering and Brave
-
-`AdBlockWebViewClient.kt` intercepts exact/subdomain ad and tracking hosts, returns empty resource responses, and applies cosmetic CSS on page load. It does not block shared video delivery domains such as `googlevideo.com`, which would break playback. Payment uses a separate unfiltered client. WebView file/content access, mixed content and non-HTTPS top-level navigation are disabled. No JavaScript-to-native bridge is exposed.
-
-Brave's actual blocker is the Rust `adblock-rust` engine, not a JavaScript snippet: https://github.com/brave/adblock-rust . It is not vendored or represented as integrated in this project. Shipping it in Android WebView requires a separately built Android NDK/JNI library and maintained filter/resource lists, plus applicable license compliance. Current blocking is a limited built-in alternative. It cannot guarantee ad-free YouTube playback or reproduce Brave Shields. Service-worker requests and first-party/server-inserted ads can bypass this implementation. Arbitrary third-party page compatibility and TV web-player controls require device testing.
+`AdBlockWebViewClient.kt` provides exact/subdomain ad host filtering and cosmetic CSS in the native viewer. It is a limited built-in filter, not Brave Shields. Brave uses the separate Rust engine https://github.com/brave/adblock-rust; that engine is not bundled. First-party/server-inserted ads and service-worker requests can bypass WebView interception. Ad-free YouTube cannot be guaranteed. Payment uses an unfiltered client. File/content access, mixed content and non-HTTPS navigation are disabled; no native JavaScript bridge is exposed.
 
 ## Verification
 
-`cd backend && npm test` runs 21 tests covering signature canonicalization, token hashing, safe URL handling, HTML escaping, successful verified ITN activation, duplicate ITN idempotency and wrong-amount rejection. Worker request tests cover authorization and rejection paths. Use `npx wrangler deploy --dry-run` to validate the Worker bundle. Schema is in `backend/migrations/`. No APK or successful live payment should be claimed until Android build/device and Payfast sandbox tests pass.
-
-## Welcome screen
-
-Version 1.2 uses an original cinematic poster collage with slow local animation on TV and the website. Native Activate opens the existing email/payment form; the website Activate button opens TV installation/activation instructions. The public page has a motion pause control and supports reduced motion. Browser checks passed at desktop and 390px phone width, including the activation dialog and focus restoration. Android compilation passed; TV device visual testing remains pending. Artwork provenance and the final prompt are in `docs/welcome-art.md`.
+`cd backend && npm test` runs 29 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.

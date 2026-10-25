@@ -1,4 +1,7 @@
 PAYFAST_MERCHANT_ID=
 PAYFAST_MERCHANT_KEY=
 PAYFAST_PASSPHRASE=
-# Keep these server-side. Copy to .dev.vars only for local testing.
+PAYFAST_SANDBOX=true
+AUTH_PEPPER=
+EXEMPT_CODE_HASH=
+# Local development values only. Never commit filled secrets.
