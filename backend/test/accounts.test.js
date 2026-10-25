@@ -7,7 +7,8 @@ import {hash,signature} from '../src/security.js';
 import {passwordHash,verifyPassword} from '../src/auth.js';
 function fixture(){const db=new DatabaseSync(':memory:');for(const file of readdirSync(new URL('../migrations/',import.meta.url)).sort())db.exec(readFileSync(new URL('../migrations/'+file,import.meta.url),'utf8'));const DB={prepare(sql){const bound=(args)=>({first:async()=>db.prepare(sql).get(...args)||null,run:async()=>db.prepare(sql).run(...args),all:async()=>({results:db.prepare(sql).all(...args)})});return {...bound([]),bind:(...args)=>bound(args)}},async batch(statements){db.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.run());db.exec('COMMIT');return results}catch(e){db.exec('ROLLBACK');throw e}}};return {db,env:{DB,AUTH_PEPPER:'test-only-pepper',EXEMPT_CODE_HASH:hash('private-setup'),PUBLIC_BASE_URL:'https://vert.example',PAYFAST_MERCHANT_ID:'merchant',PAYFAST_MERCHANT_KEY:'key',PAYFAST_PASSPHRASE:'passphrase',PAYFAST_SANDBOX:'true',ASSETS:{fetch:async()=>new Response('admin shell')}}}}
 const pass='A long test password 123!';
-async function call(env,path,body,cookie,extra={}){return worker.fetch(new Request('https://vert.example'+path,{method:body?'POST':'GET',headers:{...(cookie?{Cookie:cookie}:{}),...extra},...(body?{body:JSON.stringify(body)}:{})}),env)}
+const recoveryAnswers=['Marmalade rabbit','Secret riverside','Little comet'];
+async function call(env,path,body,cookie,extra={}){if(path==='/api/auth/signup'&&body)body={confirmEmail:body.email,answers:recoveryAnswers,...body};return worker.fetch(new Request('https://vert.example'+path,{method:body?'POST':'GET',headers:{...(cookie?{Cookie:cookie}:{}),...extra},...(body?{body:JSON.stringify(body)}:{})}),env)}
 const cookie=r=>r.headers.get('set-cookie').split(';')[0];
 test('public signup cannot grant free access or admin role; cookie protects admin',async()=>{const {db,env}=fixture();const r=await call(env,'/api/auth/signup',{email:'viewer@example.com',password:pass,role:'admin',active:true});assert.equal(r.status,201);const b=await r.json();assert.equal(b.user.active,false);assert.equal(b.user.role,'user');assert.equal(b.token,undefined);assert.match(r.headers.get('set-cookie'),/HttpOnly; Secure; SameSite=Lax/);assert.notEqual(db.prepare('SELECT password_hash FROM users').get().password_hash,pass);assert.equal((await call(env,'/api/admin/content',null,cookie(r))).status,403);db.close()});
 test('both reserved emails require setup proof only at signup and bypass all app payment checks',async()=>{const {db,env}=fixture();for(const email of ['vertcorpgroup@gmail.com','mahlangu843@gmail.com']){assert.equal((await call(env,'/api/auth/signup',{email,password:pass})).status,403);const r=await call(env,'/api/auth/signup',{email,password:pass,setupCode:'private-setup'});assert.equal(r.status,201);const b=await r.json();assert.equal(b.user.role,'admin');assert.equal(b.user.active,true);assert.equal(b.user.paymentExempt,true);const c=cookie(r);assert.equal((await call(env,'/admin',null,c)).status,200);const checkout=await call(env,'/api/billing/checkout',{},c);assert.deepEqual(await checkout.json(),{active:true});const login=await call(env,'/api/auth/login',{email,password:pass,client:'tv'});assert.equal(login.status,200);const account=await login.json();assert.ok(account.token);assert.equal(account.user.active,true);const catalog=await call(env,'/api/get_links.json',null,null,{Authorization:'Bearer '+account.token});assert.equal(catalog.status,200)}assert.equal(db.prepare('SELECT count(*) AS n FROM orders').get().n,0);db.close()});
@@ -66,5 +67,50 @@ test('live Payfast checkout permits its hosted-payment redirect while sandbox st
   const html=await live.text();assert.match(html,/method="POST" action="https:\/\/www\.payfast\.co\.za\/eng\/process"/);assert.match(html,/name="amount" value="399\.00"/);
   env.PAYFAST_SANDBOX='true';const sandbox=await worker.fetch(new Request(activation.checkoutUrl),env);
   assert.match(sandbox.headers.get('Content-Security-Policy'),/form-action https:\/\/sandbox\.payfast\.co\.za;/);assert.ok(!sandbox.headers.get('Content-Security-Policy').includes('payment.payfast.io'));
+ }finally{db.close()}
+});
+
+test('signup requires matching email and three different answers stored only as a hash',async()=>{
+ const {db,env}=fixture();try{
+  const raw=body=>worker.fetch(new Request('https://vert.example/api/auth/signup',{method:'POST',body:JSON.stringify(body)}),env);
+  assert.equal((await raw({email:'confirm@example.com',password:pass})).status,400);
+  assert.equal((await raw({email:'confirm@example.com',confirmEmail:'other@example.com',password:pass,answers:recoveryAnswers})).status,400);
+  assert.equal((await raw({email:'confirm@example.com',confirmEmail:'confirm@example.com',password:pass,answers:['same','same','same']})).status,400);
+  const created=await call(env,'/api/auth/signup',{email:'confirm@example.com',confirmEmail:' CONFIRM@example.com ',password:pass});assert.equal(created.status,201);assert.equal((await created.json()).user.recoveryConfigured,true);
+  const stored=db.prepare('SELECT answers_hash FROM account_recovery').get().answers_hash;assert.ok(stored.startsWith('pbkdf2-'));assert.ok(!stored.includes(recoveryAnswers[0]));
+ }finally{db.close()}
+});
+test('password recovery requires every answer, preserves payment and role, and revokes all sessions',async()=>{
+ const {db,env}=fixture();try{
+  const first=await call(env,'/api/auth/signup',{email:'recover@example.com',password:pass}),oldCookie=cookie(first);
+  await call(env,'/api/auth/login',{email:'recover@example.com',password:pass,client:'tv'});db.exec('UPDATE activations SET active=1');
+  const reset={email:'recover@example.com',answers:recoveryAnswers,newPassword:'My completely new password 123!'};
+  assert.equal((await call(env,'/api/auth/recovery/reset',{...reset,answers:[...recoveryAnswers.slice(0,2),'incorrect']})).status,401);
+  assert.equal((await call(env,'/api/auth/me',null,oldCookie)).status,200);
+  assert.equal((await call(env,'/api/auth/recovery/reset',{...reset,answers:recoveryAnswers.map(x=>'  '+x.toUpperCase().replaceAll(' ','   ')+'  ')})).status,200);
+  assert.equal(db.prepare('SELECT count(*) AS n FROM sessions').get().n,0);assert.equal((await call(env,'/api/auth/me',null,oldCookie)).status,401);
+  assert.equal((await call(env,'/api/auth/login',{email:reset.email,password:pass})).status,401);
+  const login=await call(env,'/api/auth/login',{email:reset.email,password:reset.newPassword});assert.equal(login.status,200);const user=(await login.json()).user;assert.equal(user.active,true);assert.equal(user.role,'user');
+ }finally{db.close()}
+});
+test('existing accounts enroll recovery with their current password; reset cannot enroll missing answers',async()=>{
+ const {db,env}=fixture();try{
+  const first=await call(env,'/api/auth/signup',{email:'older@example.com',password:pass}),c=cookie(first);db.exec('DELETE FROM account_recovery');
+  assert.equal((await(await call(env,'/api/auth/me',null,c)).json()).user.recoveryConfigured,false);
+  assert.equal((await call(env,'/api/auth/recovery/reset',{email:'older@example.com',answers:recoveryAnswers,newPassword:pass})).status,401);
+  assert.equal((await call(env,'/api/auth/recovery/setup',{currentPassword:pass,answers:recoveryAnswers})).status,401);
+  assert.equal((await call(env,'/api/auth/recovery/setup',{currentPassword:'Incorrect password 123',answers:recoveryAnswers},c)).status,401);
+  assert.equal((await call(env,'/api/auth/recovery/setup',{currentPassword:pass,answers:recoveryAnswers},c,{Origin:'https://evil.example'})).status,403);
+  assert.equal((await call(env,'/api/auth/recovery/setup',{currentPassword:pass,answers:recoveryAnswers},c)).status,200);
+  assert.equal((await(await call(env,'/api/auth/me',null,c)).json()).user.recoveryConfigured,true);
+ }finally{db.close()}
+});
+test('recovery responses conceal missing accounts and reject excessive guessing',async()=>{
+ const {db,env}=fixture();try{
+  await call(env,'/api/auth/signup',{email:'guess@example.com',password:pass});
+  const attempt=email=>call(env,'/api/auth/recovery/reset',{email,answers:['unknown pet','unknown place','unknown nickname'],newPassword:pass});
+  const missing=await attempt('absent@example.com'),wrong=await attempt('guess@example.com');assert.equal(missing.status,401);assert.deepEqual(await missing.json(),await wrong.json());
+  for(let i=0;i<4;i++)assert.equal((await attempt('guess@example.com')).status,401);
+  assert.equal((await attempt('guess@example.com')).status,429);
  }finally{db.close()}
 });

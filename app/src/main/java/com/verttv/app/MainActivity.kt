@@ -39,18 +39,26 @@ class MainActivity : FragmentActivity() {
         setContentView(R.layout.activity_main)
         val email = findViewById<EditText>(R.id.email)
         val password = findViewById<EditText>(R.id.password)
-        val code = findViewById<EditText>(R.id.activation_code)
+        val confirmation = findViewById<EditText>(R.id.confirm_email)
+        val security = findViewById<LinearLayout>(R.id.signup_security)
+        val answers=RecoveryActivity.addQuestions(this,security)
+        RecoveryActivity.passwordToggle(password,findViewById(R.id.password_visibility))
+        val forgot=findViewById<Button>(R.id.forgot_password)
+        forgot.setOnClickListener { startActivity(Intent(this,RecoveryActivity::class.java).putExtra("email",email.text.toString())) }
         val submit = findViewById<Button>(R.id.activate)
         val toggle = findViewById<Button>(R.id.switch_auth)
         val status = findViewById<TextView>(R.id.status)
         val welcome = findViewById<android.view.View>(R.id.welcome_copy)
         val form = findViewById<android.view.View>(R.id.activation_form)
+        if(api.prefs.getString("token",null)!=null) {
+            findViewById<LinearLayout>(R.id.activation_form).addView(Button(this).apply {
+                text="Set security questions";isAllCaps=false;setBackgroundResource(R.drawable.focus_card)
+                setTextColor(android.graphics.Color.WHITE)
+                setOnClickListener { startActivity(Intent(this@MainActivity,RecoveryActivity::class.java).putExtra("setup",true)) }
+            })
+        }
         var signup = true
         email.setText(api.prefs.getString("email", ""))
-        fun updateSetupField() {
-            val reserved = email.text.toString().trim().lowercase() in setOf("vertcorpgroup@gmail.com", "mahlangu843@gmail.com")
-            code.visibility = if (signup && reserved) android.view.View.VISIBLE else android.view.View.GONE
-        }
         fun showForm(create: Boolean) {
             signup = create
             welcome.visibility = android.view.View.GONE
@@ -59,14 +67,13 @@ class MainActivity : FragmentActivity() {
             submit.text = if (signup) "Create account" else "Sign in"
             toggle.text = if (signup) "Already a member? Sign in" else "New here? Create an account"
             status.text = message ?: if (signup) "Enter your email and a password of 12+ characters." else "Use your Vert TV email and password."
-            updateSetupField()
+            confirmation.visibility=if(signup) android.view.View.VISIBLE else android.view.View.GONE
+            security.visibility=confirmation.visibility
+            forgot.visibility=if(signup) android.view.View.GONE else android.view.View.VISIBLE
+            password.transformationMethod=android.text.method.PasswordTransformationMethod.getInstance()
+            findViewById<Button>(R.id.password_visibility).text="Show password 👁"
             email.requestFocus()
         }
-        email.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { updateSetupField() }
-            override fun afterTextChanged(s: android.text.Editable?) {}
-        })
         toggle.setOnClickListener { showForm(!signup) }
         findViewById<Button>(R.id.open_activation).setOnClickListener { showForm(true) }
         findViewById<Button>(R.id.open_login).setOnClickListener { showForm(false) }
@@ -74,13 +81,16 @@ class MainActivity : FragmentActivity() {
             val value = email.text.toString().trim()
             if (!android.util.Patterns.EMAIL_ADDRESS.matcher(value).matches()) { email.error = "Enter a valid email"; return@setOnClickListener }
             if (password.text.length !in 12..128) { password.error = "Use 12–128 characters"; return@setOnClickListener }
+            if(signup && !value.equals(confirmation.text.toString().trim(),ignoreCase=true)) { confirmation.error="Email addresses must match";return@setOnClickListener }
+            if(signup && answers.any { it.text.toString().trim().length !in 4..128 }) { status.text="Answer all three security questions using 4–128 characters each.";return@setOnClickListener }
             submit.isEnabled = false; toggle.isEnabled = false
             lifecycleScope.launch {
                 try {
-                    val body = JSONObject().put("email", value).put("password", password.text.toString()).put("setupCode", code.text.toString()).put("client", "tv")
+                    val body = JSONObject().put("email", value).put("password", password.text.toString()).put("client", "tv")
+                    if(signup) body.put("confirmEmail",confirmation.text.toString()).put("answers",org.json.JSONArray(answers.map { it.text.toString() }))
                     val result = api.request(if (signup) "/api/auth/signup" else "/api/auth/login", body)
                     api.prefs.edit().putString("email", value).putString("token", result.getString("token")).apply()
-                    password.text.clear(); code.text.clear()
+                    password.text.clear();answers.forEach { it.text.clear() }
                     if (result.getJSONObject("user").optBoolean("active")) verify()
                     else {
                         val checkout = api.request("/api/billing/checkout", JSONObject())

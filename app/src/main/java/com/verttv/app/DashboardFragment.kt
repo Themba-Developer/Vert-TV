@@ -19,7 +19,9 @@ class DashboardFragment : BrowseSupportFragment() {
         brandColor = Color.rgb(16,31,48)
         setOnSearchClickedListener { load() }
         setOnItemViewClickedListener { _, item, _, _ ->
-            if(item is ContentItem && item.url == "vert:logout") {
+            if(item is ContentItem && item.url == "vert:security") {
+                startActivity(Intent(requireContext(),RecoveryActivity::class.java).putExtra("setup",true))
+            } else if(item is ContentItem && item.url == "vert:logout") {
                 lifecycleScope.launch {
                     val api = Api(requireContext())
                     try { api.request("/api/auth/logout", org.json.JSONObject()) } catch (_: Exception) {}
@@ -48,6 +50,7 @@ class DashboardFragment : BrowseSupportFragment() {
                 rows.add(ListRow(HeaderItem(index.toLong(), entry.key), cards))
             }
             val account = ArrayObjectAdapter(CardPresenter())
+            account.add(ContentItem("Security questions", "Account", "vert:security"))
             account.add(ContentItem("Sign out", "Account", "vert:logout"))
             rows.add(ListRow(HeaderItem(9999L, "Account"), account))
             adapter = rows
