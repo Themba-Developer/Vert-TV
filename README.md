@@ -87,4 +87,4 @@ Current verification: Android version 1.3 compiled in GitHub Actions run 4022213
 
 Current APK SHA-256: `40ea3dfe24ed4b03134db43952aeb09bc135c868ae8f964f3b24264531bcaa95`.
 
-The browser player fills the viewport, requests browser fullscreen on selection where supported, and shows only a small Back to library overlay. Browser Back/Escape also returns to the library and stops the embedded page. The iframe sandbox blocks popup windows and top-level navigation; source-site branding remains controlled by that site.
+The browser player fills the viewport, requests browser fullscreen on selection where supported, and shows only a small Back to library overlay. The Back overlay returns to the library and stops the embedded page; Escape and parent-page Back navigation are also handled. The iframe sandbox blocks popup windows and top-level navigation; source-site branding remains controlled by that site.

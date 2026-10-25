@@ -17,7 +17,7 @@ function returnToLibrary(){const player=$('#player');if(!player.open||playerRetu
 $('#close-player').onclick=returnToLibrary;
 $('#player').addEventListener('cancel',e=>{e.preventDefault();returnToLibrary()});
 window.addEventListener('popstate',()=>{if($('#player').open)$('#player').close()});
-document.addEventListener('fullscreenchange',()=>{if(document.fullscreenElement===$('#player'))playerWasFullscreen=true;else if(playerWasFullscreen&&$('#player').open)returnToLibrary()});
-$('#player').addEventListener('close',()=>{$('#player-frame').src='about:blank';document.body.classList.remove('player-open');playerWasFullscreen=false;playerReturning=false;if(document.fullscreenElement===$('#player'))document.exitFullscreen().catch(()=>{});if(history.state?.vertPlayer)history.replaceState({},'',location.href);playerFocus?.focus()});
+document.addEventListener('fullscreenchange',()=>{const player=$('#player'),active=document.fullscreenElement;const inside=active&&(active===player||player.contains(active));if(inside){if(player.open)playerWasFullscreen=true;else document.exitFullscreen().catch(()=>{})}else if(playerWasFullscreen&&player.open)returnToLibrary()});
+$('#player').addEventListener('close',()=>{$('#player-frame').src='about:blank';document.body.classList.remove('player-open');playerWasFullscreen=false;playerReturning=false;if(document.fullscreenElement&&(document.fullscreenElement===$('#player')||$('#player').contains(document.fullscreenElement)))document.exitFullscreen().catch(()=>{});if(history.state?.vertPlayer)history.replaceState({},'',location.href);playerFocus?.focus()});
 $('#refresh').onclick=loadLibrary;
 try{user=(await api('/api/auth/me')).user;if(isAdminEntry&&user.role==='admin')location.replace('/admin');else await showAccount()}catch(e){if(e.status===401)showAuth();else{$('#loading').textContent='Unable to connect. Please refresh to retry.'}}
