@@ -8,8 +8,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("armeabi-v7a","arm64-v8a","x86","x86_64") }
         targetSdk = 35
-        versionCode = 13
-        versionName = "2.2.0"
+        versionCode = 14
+        versionName = "2.3.0"
         buildConfigField("String", "API_BASE_URL", "\"${providers.gradleProperty("VERT_API_URL").getOrElse("https://yourdomain.com")}\"")
     }
     ndkVersion = "28.2.13676358"
