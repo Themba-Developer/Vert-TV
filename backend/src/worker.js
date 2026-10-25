@@ -1,3 +1,4 @@
+import { buildVidSrcURL, checkVidSrcFeeds } from './vidsrc.js';
 import { ACTIVATION_AMOUNT_CENTS, formatAmount, moneyToCents } from './billing.js';
 import { authRoute, currentUser, originCheck, ADMIN_EMAILS } from './auth.js';
 import { hash, signature, canonical, equal, httpsURL, escapeHTML } from './security.js';
@@ -36,6 +37,14 @@ async function handle(request,env) {
  if(path.startsWith('/api/admin/') || path==='/admin' || path.startsWith('/admin/')) {
   const owner=await admin(request,env); if(!['GET','HEAD','OPTIONS'].includes(request.method))originCheck(request);
   if(path==='/admin' || path==='/admin/') return env.ASSETS.fetch(new Request(new URL('/admin',u),request));
+  if(path==='/api/admin/vidsrc/feeds' && request.method==='GET')return json(await checkVidSrcFeeds());
+  if(['/api/admin/vidsrc/preview','/api/admin/vidsrc/publish'].includes(path) && request.method==='POST'){
+   const body=await request.json(),url=buildVidSrcURL(body);
+   if(path.endsWith('/preview'))return json({url});
+   if(typeof body.title!=='string'||!body.title.trim()||typeof body.category!=='string'||!body.category.trim())fail(400,'Title and category are required to publish');
+   const id=crypto.randomUUID();await env.DB.prepare('INSERT INTO content(id,title,category,url,kind) VALUES(?,?,?,?,?)').bind(id,body.title.trim().slice(0,200),body.category.trim().slice(0,100),url,'link').run();
+   return json({id,url},201);
+  }
   if(path==='/api/admin/content' && request.method==='GET') return json({items:(await env.DB.prepare('SELECT * FROM content ORDER BY created_at DESC').all()).results});
   if(path==='/api/admin/content' && request.method==='POST') {
    const b=await request.json(); if(!b.title?.trim() || !b.category?.trim() || !httpsURL(b.url)) fail(400,'Title, category and HTTPS URL required');
