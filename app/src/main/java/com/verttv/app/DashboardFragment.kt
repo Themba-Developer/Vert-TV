@@ -12,14 +12,46 @@ import kotlinx.coroutines.launch
 
 data class ContentItem(val title: String, val category: String, val url: String, val id: String = "", val media: org.json.JSONObject? = null)
 class DashboardFragment : BrowseSupportFragment() {
+    private var lastSearch=""
+    private fun search() {
+        val input=android.widget.EditText(requireContext()).apply {
+            hint="Movie or TV show name";setText(lastSearch);setSingleLine(true)
+            filters=arrayOf(android.text.InputFilter.LengthFilter(120))
+            imeOptions=android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+        }
+        val dialog=android.app.AlertDialog.Builder(requireContext()).setTitle("Search movies & TV shows")
+            .setMessage("Matching and related titles open inside Vert TV. No results means no matching title is listed.")
+            .setView(input).setPositiveButton("Search",null).setNegativeButton("Cancel",null).setNeutralButton("Refresh library") { _, _ -> load() }.create()
+        dialog.setOnShowListener {
+            val submit=dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+            submit.setOnClickListener {
+                val query=input.text.toString().trim()
+                if(query.isBlank()) { input.error="Enter a movie or show name" }
+                else {
+                    lastSearch=query
+                    val url=android.net.Uri.Builder().scheme("https").authority("dulo.mov").appendPath("search").appendQueryParameter("q",query).build().toString()
+                    dialog.dismiss()
+                    startActivity(Intent(requireContext(),ViewerActivity::class.java).putExtra("url",url))
+                }
+            }
+            input.setOnEditorActionListener { _, action, _ ->
+                if(action==android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) { submit.performClick();true } else false
+            }
+            input.requestFocus()
+        }
+        dialog.show()
+    }
+
     override fun onActivityCreated(state: Bundle?) {
         super.onActivityCreated(state)
         title = "VERT TV"
         headersState = HEADERS_ENABLED
         brandColor = Color.rgb(16,31,48)
-        setOnSearchClickedListener { load() }
+        setOnSearchClickedListener { search() }
         setOnItemViewClickedListener { _, item, _, _ ->
-            if(item is ContentItem && item.url == "vert:security") {
+            if(item is ContentItem && item.url == "vert:search") { search()
+            } else if(item is ContentItem && item.url == "vert:refresh") { load()
+            } else if(item is ContentItem && item.url == "vert:security") {
                 startActivity(Intent(requireContext(),RecoveryActivity::class.java).putExtra("setup",true))
             } else if(item is ContentItem && item.url == "vert:logout") {
                 lifecycleScope.launch {
@@ -49,13 +81,17 @@ class DashboardFragment : BrowseSupportFragment() {
                 entry.value.forEach { cards.add(it) }
                 rows.add(ListRow(HeaderItem(index.toLong(), entry.key), cards))
             }
+            val browse=ArrayObjectAdapter(CardPresenter())
+            browse.add(ContentItem("Search movies & TV shows", "Search", "vert:search"))
+            browse.add(ContentItem("Refresh library", "Search", "vert:refresh"))
+            rows.add(ListRow(HeaderItem(9998L,"Search"),browse))
             val account = ArrayObjectAdapter(CardPresenter())
             account.add(ContentItem("Security questions", "Account", "vert:security"))
             account.add(ContentItem("Sign out", "Account", "vert:logout"))
             rows.add(ListRow(HeaderItem(9999L, "Account"), account))
             adapter = rows
             title = if(groups.isEmpty()) "VERT TV • Your library is coming soon" else "VERT TV"
-        } catch(e: Exception) { title = "Connection failed • Select search to retry" }
+        } catch(e: Exception) { title = "Connection failed • Select search, then Refresh library" }
     } }
 }
 class CardPresenter : Presenter() {

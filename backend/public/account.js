@@ -1,3 +1,4 @@
+import {duloSearchURL} from './dulo-search.js';
 import {signupFields,signupRecovery,openRecovery,resetPasswordVisibility} from './security-ui.js';
 const $=s=>document.querySelector(s);
 let signup=location.pathname==='/signup',user=null,items=[],category='All',poll=null;
@@ -23,6 +24,7 @@ $('#player').addEventListener('cancel',e=>{e.preventDefault();returnToLibrary()}
 window.addEventListener('popstate',()=>{if($('#player').open)$('#player').close()});
 document.addEventListener('fullscreenchange',()=>{const player=$('#player'),active=document.fullscreenElement;const inside=active&&(active===player||player.contains(active));if(inside){if(player.open)playerWasFullscreen=true;else document.exitFullscreen().catch(()=>{})}else if(playerWasFullscreen&&player.open)returnToLibrary()});
 $('#player').addEventListener('close',()=>{$('#player-frame').src='about:blank';document.body.classList.remove('player-open');playerWasFullscreen=false;playerReturning=false;if(document.fullscreenElement&&(document.fullscreenElement===$('#player')||$('#player').contains(document.fullscreenElement)))document.exitFullscreen().catch(()=>{});if(history.state?.vertPlayer)history.replaceState({},'',location.href);playerFocus?.focus()});
+$('#movie-search').onsubmit=event=>{event.preventDefault();try{const query=$('#movie-query').value.trim();const url=duloSearchURL(query);$('#account-message').textContent='';openPlayer({title:'Search: '+query,url})}catch(error){$('#account-message').textContent=error.message;$('#movie-query').focus()}};
 $('#refresh').onclick=loadLibrary;
 $('#forgot-password').onclick=()=>openRecovery(false,$('#email').value);
 $('#recovery-settings').onclick=()=>openRecovery(true,user.email);
