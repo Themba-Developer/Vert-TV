@@ -2,6 +2,8 @@
 
 Native Kotlin Android TV app plus a separate web app, email/password accounts, a Cloudflare Worker, D1 database, private R2 movies and Payfast once-off account activation.
 
+Current customer source: Dulo. The 2Embed default catalogue was rolled back; its admin tools and records remain available.
+
 ## Links
 
 - Welcome page: https://vert-tv.mahlangu843.workers.dev
@@ -83,9 +85,9 @@ An hourly scheduled handler removes expired playback/checkout tickets, sessions 
 
 `cd backend && npm test` runs 51 tests. Account tests use SQLite with the actual D1 migrations, including role restrictions, free admin signup proof, password verification, cookies/logout, expiry, CSRF, login throttling and shared paid entitlement after verified mock ITN. Payment signatures, duplicate notifications, wrong amounts and legacy activation checks are also covered. `npx wrangler deploy --dry-run` validates the Worker bundle. Browser checks validate the welcome page and account UI. Android build success does not replace TV-device playback and remote-control testing.
 
-Current verification: Android version 1.6 compiled in GitHub Actions run 40230247045. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
+Current verification: Android version 1.7 compiled in GitHub Actions run 40230897722. Live desktop/phone browser checks passed for signup, password login, logout/session revocation, unpaid paywall and denial of non-admin API access. A temporary test account was removed after verification. The welcome `/` URL and web app `/app` both return 200; unauthenticated `/admin` redirects to `/login?next=/admin`, and admin APIs return 401 without a valid session.
 
-Current APK SHA-256: `e85a72f3aa93461152f3bff258ccb496ad49c9452e689a1f759a2bdb83d363ad`.
+Current APK SHA-256: `785982c24b26c8888fed0959cef4ae90f44c362274555e1923c86488087edb04`.
 
 The browser player fills the viewport, requests browser fullscreen on selection where supported, and shows only a small Back to library overlay. The Back overlay returns to the library and stops the embedded page; Escape and parent-page Back navigation are also handled. The iframe sandbox blocks popup windows and top-level navigation; source-site branding remains controlled by that site.
 
@@ -116,3 +118,5 @@ The default customer catalogue is now 2Embed: live trending movies/shows, search
 Default catalogue verification: 52 backend tests pass; Android 1.6 compiled successfully. Live Worker checks returned 40 trending movie/show titles without Dulo links, movie/TV searches, full TV seasons and 23 episodes for the sample first season. Temporary paid test activation was removed. No video playback or payment was performed.
 
 Current source: Dulo (`CATALOGUE_SOURCE=dulo`). The 2Embed default catalogue experiment was rolled back at the owner’s request after reported playback failures and limited selection. Dulo collections are restored and 2Embed customer search controls removed; its imported records remain stored but hidden. R399 activation, admin exemptions and the welcome URL are unchanged.
+
+Dulo rollback verification: 53 tests pass. Live paid-viewer check returned 10 Dulo entries with no 2Embed catalogue requests; the web page no longer displays 2Embed search controls. R399 activation remains. Temporary test activation was removed. Android 1.7 restores the previous dashboard and refresh behaviour.
