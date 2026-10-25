@@ -114,3 +114,32 @@ test('recovery responses conceal missing accounts and reject excessive guessing'
   assert.equal((await attempt('guess@example.com')).status,429);
  }finally{db.close()}
 });
+test('signed-in password changes require proof, matching confirmation and revoke sessions without changing entitlement',async()=>{
+ const {db,env}=fixture();try{
+  const login=await call(env,'/api/auth/signup',{email:'vertcorpgroup@gmail.com',password:pass,setupCode:'private-setup'}),c=cookie(login);
+  const body={currentPassword:pass,newPassword:'A changed secret password 123!',confirmPassword:'A changed secret password 123!'};
+  assert.equal((await call(env,'/api/auth/password/change',body)).status,401);
+  assert.equal((await call(env,'/api/auth/password/change',{...body,confirmPassword:'A different password 123!'},c)).status,400);
+  assert.equal((await call(env,'/api/auth/password/change',{...body,currentPassword:'An incorrect password 123!'},c)).status,401);
+  assert.equal((await call(env,'/api/auth/password/change',body,c,{Origin:'https://evil.example'})).status,403);
+  assert.equal((await call(env,'/api/auth/password/change',body,c)).status,200);assert.equal((await call(env,'/api/auth/me',null,c)).status,401);assert.equal(db.prepare('SELECT count(*) AS n FROM sessions').get().n,0);
+  const next=await call(env,'/api/auth/login',{email:'vertcorpgroup@gmail.com',password:body.newPassword});assert.equal(next.status,200);const user=(await next.json()).user;assert.equal(user.role,'admin');assert.equal(user.paymentExempt,true);assert.equal(user.recoveryConfigured,true);
+ }finally{db.close()}
+});
+test('Recent and Loved persist separately per paid account and only accept published library IDs',async()=>{
+ const {db,env}=fixture();try{
+  assert.equal((await call(env,'/api/library/activity')).status,401);
+  const ordinary=await call(env,'/api/auth/signup',{email:'activity@example.com',password:pass});assert.equal((await call(env,'/api/library/activity',null,cookie(ordinary))).status,403);
+  const first=await call(env,'/api/auth/signup',{email:'vertcorpgroup@gmail.com',password:pass,setupCode:'private-setup'}),c=cookie(first);
+  const second=await call(env,'/api/auth/signup',{email:'mahlangu843@gmail.com',password:pass,setupCode:'private-setup'}),other=cookie(second),contentId='dulo-library-movies';
+  assert.equal((await call(env,'/api/library/activity',{contentId,loved:true},c)).status,200);
+  let data=await(await call(env,'/api/library/activity',null,c)).json();assert.equal(data.items[0].loved,1);assert.equal(data.items[0].lastOpened,null);
+  assert.equal((await call(env,'/api/library/activity',{contentId,opened:true},c)).status,200);data=await(await call(env,'/api/library/activity',null,c)).json();assert.equal(data.items[0].loved,1);assert.ok(data.items[0].lastOpened>0);
+  assert.equal((await call(env,'/api/library/activity',{contentId,loved:false},c)).status,200);data=await(await call(env,'/api/library/activity',null,c)).json();assert.equal(data.items[0].loved,0);assert.ok(data.items[0].lastOpened>0);
+  assert.deepEqual((await(await call(env,'/api/library/activity',null,other)).json()).items,[]);
+  assert.equal((await call(env,'/api/library/activity',{contentId:'https://other.example',opened:true},c)).status,404);
+  assert.equal((await call(env,'/api/library/activity',{contentId,loved:'yes'},c)).status,400);
+  assert.equal((await call(env,'/api/library/activity',{contentId,loved:true},c,{Origin:'https://evil.example'})).status,403);
+  db.prepare('UPDATE content SET published=0 WHERE id=?').run(contentId);assert.deepEqual((await(await call(env,'/api/library/activity',null,c)).json()).items,[]);assert.equal((await call(env,'/api/library/activity',{contentId,opened:true},c)).status,404);
+ }finally{db.close()}
+});

@@ -170,6 +170,17 @@ async function handle(request,env) {
   await env.DB.batch([env.DB.prepare('UPDATE orders SET paid=1,pf_payment_id=? WHERE id=? AND paid=0').bind(p.get('pf_payment_id'),order.id),env.DB.prepare('UPDATE activations SET active=1 WHERE id=?').bind(order.activation_id)]);
   return new Response('OK');
  }
+ if(path==='/api/library/activity'){
+  const user=await currentUser(request,env);if(!user)fail(401,'Please sign in');if(!user.active&&!user.payment_exempt)fail(403,'Payment required');
+  if(request.method==='GET')return json({items:(await env.DB.prepare('SELECT a.content_id AS id,a.loved,a.last_opened AS lastOpened FROM library_activity a JOIN content c ON c.id=a.content_id WHERE a.user_id=? AND c.published=1 ORDER BY a.last_opened DESC LIMIT 500').bind(user.id).all()).results});
+  if(request.method!=='POST')fail(405,'POST required');originCheck(request);
+  const raw=await request.text();if(raw.length>1024)fail(413,'Request too large');let body;try{body=JSON.parse(raw)}catch{fail(400,'Invalid JSON')}
+  if(!body||typeof body.contentId!=='string'||body.contentId.length>100||('loved' in body&&typeof body.loved!=='boolean')||('opened' in body&&body.opened!==true)||(!('loved' in body)&&!body.opened))fail(400,'Choose a library item and action');
+  if(!await env.DB.prepare('SELECT id FROM content WHERE id=? AND published=1').bind(body.contentId).first())fail(404,'Library item not found');
+  const loved='loved' in body?Number(body.loved):null,opened=body.opened?Date.now():null;
+  await env.DB.prepare('INSERT INTO library_activity(user_id,content_id,loved,last_opened) VALUES(?,?,COALESCE(?,0),?) ON CONFLICT(user_id,content_id) DO UPDATE SET loved=COALESCE(?,library_activity.loved),last_opened=COALESCE(?,library_activity.last_opened)').bind(user.id,body.contentId,loved,opened,loved,opened).run();
+  return json({ok:true});
+ }
  if(path==='/api/catalogue' && request.method==='GET'){
   await device(request,env,true);
   const input=Object.fromEntries(u.searchParams);

@@ -35,6 +35,22 @@ export async function authRoute(request,env,path){
  if(path==='/api/auth/me'){const user=await currentUser(request,env);if(!user)fail(401,'Please sign in');return json({user:publicUser(user)})}
  if(request.method!=='POST')fail(405,'POST required');originCheck(request);
  if(path==='/api/auth/logout'){const secret=sessionToken(request);if(secret)await env.DB.prepare('DELETE FROM sessions WHERE token_hash=?').bind(hash(secret)).run();return json({ok:true},200,{'Set-Cookie':'__Host-vert_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'})}
+ if(path==='/api/auth/password/change'){
+  const signed=await currentUser(request,env);if(!signed)fail(401,'Please sign in');
+  const b=await limitedBody(request);await rateLimit(request,env,'password-change:'+signed.email);
+  if(!validPassword(b.currentPassword)||!validPassword(b.newPassword))fail(400,'Use passwords of 12–128 characters');
+  if(b.newPassword!==b.confirmPassword)fail(400,'New passwords must match');
+  if(b.currentPassword===b.newPassword)fail(400,'Choose a different new password');
+  const row=await env.DB.prepare('SELECT password_hash FROM users WHERE id=?').bind(signed.id).first();
+  if(!row||!await verifyPassword(b.currentPassword,row.password_hash,env.AUTH_PEPPER))fail(401,'Current password is incorrect');
+  const next=await passwordHash(b.newPassword,env.AUTH_PEPPER);
+  const results=await env.DB.batch([
+   env.DB.prepare('UPDATE users SET password_hash=? WHERE id=? AND password_hash=?').bind(next,signed.id,row.password_hash),
+   env.DB.prepare('DELETE FROM sessions WHERE user_id=? AND EXISTS(SELECT 1 FROM users WHERE id=? AND password_hash=?)').bind(signed.id,signed.id,next)
+  ]);
+  if(Number(results[0].meta?.changes??results[0].changes)===0)fail(409,'Account changed. Please try again.');
+  return json({ok:true},200,{'Set-Cookie':'__Host-vert_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0'});
+ }
  if(['/api/auth/recovery/setup','/api/auth/recovery/reset'].includes(path)){
   const b=await limitedBody(request),setup=path.endsWith('/setup');
   const signed=setup?await currentUser(request,env):null;

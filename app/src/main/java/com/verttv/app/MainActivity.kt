@@ -52,9 +52,9 @@ class MainActivity : FragmentActivity() {
         val form = findViewById<android.view.View>(R.id.activation_form)
         if(api.prefs.getString("token",null)!=null) {
             findViewById<LinearLayout>(R.id.activation_form).addView(Button(this).apply {
-                text="Set security questions";isAllCaps=false;setBackgroundResource(R.drawable.focus_card)
+                text="Account settings";isAllCaps=false;setBackgroundResource(R.drawable.focus_card)
                 setTextColor(android.graphics.Color.WHITE)
-                setOnClickListener { startActivity(Intent(this@MainActivity,RecoveryActivity::class.java).putExtra("setup",true)) }
+                setOnClickListener { startActivity(Intent(this@MainActivity,SettingsActivity::class.java)) }
             })
         }
         var signup = true
