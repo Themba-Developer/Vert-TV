@@ -1,0 +1,9 @@
+/.gradle/
+**/build/
+local.properties
+.idea/
+node_modules/
+.wrangler/
+.dev.vars
+.env
+*.jks

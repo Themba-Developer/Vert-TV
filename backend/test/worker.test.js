@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import worker from '../src/worker.js';
+const request=(path,options)=>new Request('https://vert.example'+path,options);
+test('health works without leaking credentials',async()=>{const r=await worker.fetch(request('/api/health'),{});assert.equal(r.status,200);assert.equal((await r.json()).ok,true)});
+test('admin denies access when not configured',async()=>{for(const path of ['/admin','/api/admin/content']){const r=await worker.fetch(request(path),{});assert.equal(r.status,503)}});
+test('direct static admin document is never exposed',async()=>{const r=await worker.fetch(request('/admin.html'),{});assert.equal(r.status,404)});
+test('catalog, status and movies deny anonymous access',async()=>{const env={DB:{prepare:()=>({bind:()=>({first:async()=>null})})}};for(const path of ['/api/get_links.json','/api/activation/status','/media/123?ticket=fake']){const r=await worker.fetch(request(path),env);assert.ok([401,403].includes(r.status))}});
+test('payment return never activates a device',async()=>{const r=await worker.fetch(request('/payment/return'),{});assert.equal(r.status,200);assert.match(await r.text(),/verified payment/)});
+test('unconfigured payment fails closed',async()=>{const r=await worker.fetch(request('/api/activation/start',{method:'POST',body:JSON.stringify({email:'a@example.com'})}),{});assert.equal(r.status,503)});
+test('activation rejects cross-origin mutation',async()=>{const r=await worker.fetch(request('/api/activation/start',{method:'POST',headers:{Origin:'https://evil.example'},body:'{}'}),{});assert.equal(r.status,403)});
+test('forged ITN cannot write database',async()=>{const r=await worker.fetch(request('/api/payfast/itn',{method:'POST',body:'merchant_id=wrong&signature=bad'}),{PAYFAST_MERCHANT_ID:'test',PAYFAST_MERCHANT_KEY:'test',PAYFAST_PASSPHRASE:'test'});assert.equal(r.status,400)});

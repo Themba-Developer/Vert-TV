@@ -1,0 +1,143 @@
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { hash, signature, canonical, equal, httpsURL, escapeHTML } from './security.js';
+const json = (value,status=200) => Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+const fail = (status,message) => { throw Object.assign(new Error(message),{status}); };
+const token = () => crypto.randomUUID()+crypto.randomUUID();
+const jwks = new Map();
+async function admin(request,env) {
+ if(!env.CF_ACCESS_TEAM_DOMAIN || !env.CF_ACCESS_AUD) fail(503,'Configure Cloudflare Access before using admin');
+ const domain=env.CF_ACCESS_TEAM_DOMAIN;
+ if(!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(domain)) fail(503,'Invalid Access team domain');
+ const assertion=request.headers.get('Cf-Access-Jwt-Assertion'); if(!assertion) fail(401,'Sign in through Cloudflare Access');
+ if(!jwks.has(domain)) jwks.set(domain,createRemoteJWKSet(new URL(`https://${domain}/cdn-cgi/access/certs`)));
+ try { const {payload}=await jwtVerify(assertion,jwks.get(domain),{issuer:`https://${domain}`,audience:env.CF_ACCESS_AUD}); return payload.sub; }
+ catch { fail(403,'Invalid admin identity'); }
+}
+async function device(request,env,active=false) {
+ const bearer=request.headers.get('Authorization')?.replace(/^Bearer /,'');
+ const record=bearer && await env.DB.prepare('SELECT * FROM activations WHERE token_hash=?').bind(hash(bearer)).first();
+ if(!record) fail(401,'Activation token required'); if(active && !record.active) fail(403,'Payment required'); return record;
+}
+function originCheck(request) { const origin=request.headers.get('Origin'); if(origin && origin!==new URL(request.url).origin) fail(403,'Cross-origin request denied'); }
+function payfast(env) { if(!env.PAYFAST_MERCHANT_ID || !env.PAYFAST_MERCHANT_KEY || !env.PAYFAST_PASSPHRASE) fail(503,'Payfast credentials are not configured yet'); return env.PAYFAST_SANDBOX==='true'?'https://sandbox.payfast.co.za':'https://www.payfast.co.za'; }
+async function handle(request,env) {
+ const u=new URL(request.url), path=u.pathname;
+ if(path==='/api/health') return json({ok:true,service:'Vert TV',paymentsConfigured:!!env.PAYFAST_MERCHANT_ID});
+ if(path.startsWith('/api/admin/') || path==='/admin' || path.startsWith('/admin/')) {
+  const owner=await admin(request,env); originCheck(request);
+  if(path==='/admin' || path==='/admin/') return env.ASSETS.fetch(new Request(new URL('/admin.html',u),request));
+  if(path==='/api/admin/content' && request.method==='GET') return json({items:(await env.DB.prepare('SELECT * FROM content ORDER BY created_at DESC').all()).results});
+  if(path==='/api/admin/content' && request.method==='POST') {
+   const b=await request.json(); if(!b.title?.trim() || !b.category?.trim() || !httpsURL(b.url)) fail(400,'Title, category and HTTPS URL required');
+   const id=crypto.randomUUID(); await env.DB.prepare('INSERT INTO content(id,title,category,url) VALUES(?,?,?,?)').bind(id,b.title.trim().slice(0,200),b.category.trim().slice(0,100),b.url).run(); return json({id},201);
+  }
+  if(path.startsWith('/api/admin/content/') && request.method==='PUT') {
+   const b=await request.json(), id=path.split('/').pop();
+   const current=await env.DB.prepare('SELECT * FROM content WHERE id=?').bind(id).first(); if(!current) fail(404,'Title not found');
+   if(!b.title?.trim() || !b.category?.trim() || (!current.object_key && !httpsURL(b.url))) fail(400,'Title, category and HTTPS URL required');
+   await env.DB.prepare('UPDATE content SET title=?,category=?,url=? WHERE id=?').bind(b.title.trim().slice(0,200),b.category.trim().slice(0,100),current.object_key?null:b.url,id).run();
+   return json({ok:true});
+  }
+  if(path.startsWith('/api/admin/content/') && request.method==='DELETE') { await env.DB.prepare('DELETE FROM content WHERE id=?').bind(path.split('/').pop()).run(); return json({ok:true}); }
+  if(path==='/api/admin/uploads' && request.method==='POST') {
+   const b=await request.json();
+   if(!b.title?.trim() || !b.category?.trim() || !['video/mp4','video/webm'].includes(b.type) || !Number.isSafeInteger(b.size) || b.size<1 || b.size>50*1024**3) fail(400,'Use MP4/WebM, up to 50 GB, with title and category');
+   const key=`movies/${crypto.randomUUID()}.${b.type==='video/mp4'?'mp4':'webm'}`;
+   const upload=await env.MOVIES.createMultipartUpload(key,{httpMetadata:{contentType:b.type}});
+   await env.DB.prepare('INSERT INTO uploads(id,object_key,owner,title,category,content_type,size) VALUES(?,?,?,?,?,?,?)').bind(upload.uploadId,key,owner,b.title.trim().slice(0,200),b.category.trim().slice(0,100),b.type,b.size).run();
+   return json({uploadId:upload.uploadId});
+  }
+  const match=path.match(/^\/api\/admin\/uploads\/([^/]+)(?:\/(complete|abort|[0-9]+))?$/);
+  if(match) {
+   const row=await env.DB.prepare('SELECT * FROM uploads WHERE id=? AND owner=?').bind(decodeURIComponent(match[1]),owner).first(); if(!row) fail(404,'Upload not found');
+   const upload=env.MOVIES.resumeMultipartUpload(row.object_key,row.id);
+   if(request.method==='PUT' && /^\d+$/.test(match[2]||'')) {
+    const part=Number(match[2]); if(part<1 || part>10000) fail(400,'Invalid part');
+    const bytes=await request.arrayBuffer(); if(bytes.byteLength>10*1024**2 || bytes.byteLength<1) fail(400,'Part exceeds 10 MB');
+    return json(await upload.uploadPart(part,bytes));
+   }
+   if(match[2]==='abort' && request.method==='POST') { await upload.abort(); await env.DB.prepare('DELETE FROM uploads WHERE id=?').bind(row.id).run(); return json({ok:true}); }
+   if(match[2]==='complete' && request.method==='POST') {
+    const {parts}=await request.json(); if(!Array.isArray(parts) || parts.length<1 || parts.length>10000 || parts.some((p,i)=>p.partNumber!==i+1 || typeof p.etag!=='string')) fail(400,'Invalid parts');
+    await upload.complete(parts);
+    const head=await env.MOVIES.head(row.object_key); if(!head || head.size!==row.size) { await env.MOVIES.delete(row.object_key); fail(400,'Uploaded size mismatch'); }
+    await env.DB.batch([env.DB.prepare('INSERT INTO content(id,title,category,object_key) VALUES(?,?,?,?)').bind(crypto.randomUUID(),row.title,row.category,row.object_key),env.DB.prepare('DELETE FROM uploads WHERE id=?').bind(row.id)]); return json({ok:true});
+   }
+  }
+  fail(404,'Admin route not found');
+ }
+ // Never expose the static admin document without Access validation.
+ if(path==='/admin.html') fail(404,'Not found');
+ if(path==='/api/activation/start' && request.method==='POST') {
+  originCheck(request); payfast(env);
+  const b=await request.json(), email=String(b.email||'').trim().toLowerCase(); if(email.length>254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400,'Valid email required');
+  const id=crypto.randomUUID(), secret=token(), checkout=token(), order=crypto.randomUUID();
+  // A fresh device must pay; knowing an active email does not grant access.
+  await env.DB.batch([env.DB.prepare('INSERT INTO activations(id,email,token_hash) VALUES(?,?,?)').bind(id,email,hash(secret)),env.DB.prepare('INSERT INTO orders(id,activation_id) VALUES(?,?)').bind(order,id)]);
+  // Checkout ticket is scoped to checkout only, never a device bearer token.
+  await env.DB.prepare('INSERT INTO checkout_tickets(ticket_hash,order_id,expires_at) VALUES(?,?,?)').bind(hash(checkout),order,Date.now()+30*60*1000).run();
+  return json({token:secret,checkoutUrl:`${env.PUBLIC_BASE_URL}/checkout?ticket=${checkout}`});
+ }
+ if(path==='/api/activation/checkout' && request.method==='POST') {
+  originCheck(request); payfast(env); const d=await device(request,env);
+  const order=await env.DB.prepare('SELECT id FROM orders WHERE activation_id=? AND paid=0 LIMIT 1').bind(d.id).first();
+  if(!order) fail(409,'No pending payment'); const checkout=token();
+  await env.DB.prepare('INSERT INTO checkout_tickets(ticket_hash,order_id,expires_at) VALUES(?,?,?)').bind(hash(checkout),order.id,Date.now()+30*60*1000).run();
+  return json({checkoutUrl:`${env.PUBLIC_BASE_URL}/checkout?ticket=${checkout}`});
+ }
+ if(path==='/api/activation/status') { const d=await device(request,env); return json({active:!!d.active}); }
+ if(path==='/checkout') {
+  const host=payfast(env), ticket=u.searchParams.get('ticket')||'';
+  const order=await env.DB.prepare('SELECT o.id,a.email FROM checkout_tickets t JOIN orders o ON o.id=t.order_id JOIN activations a ON a.id=o.activation_id WHERE t.ticket_hash=? AND t.expires_at>?').bind(hash(ticket),Date.now()).first(); if(!order) fail(401,'Checkout expired. Return to the app and retry.');
+  const p=new URLSearchParams({merchant_id:env.PAYFAST_MERCHANT_ID,merchant_key:env.PAYFAST_MERCHANT_KEY,return_url:env.PUBLIC_BASE_URL+'/payment/return',cancel_url:env.PUBLIC_BASE_URL+'/payment/cancel',notify_url:env.PUBLIC_BASE_URL+'/api/payfast/itn',email_address:order.email,m_payment_id:order.id,amount:'199.00',item_name:'Vert TV once-off activation'});
+  p.set('signature',signature(p,env.PAYFAST_PASSPHRASE));
+  return new Response(`<!doctype html><html><head><meta name="viewport" content="width=device-width"></head><body style="background:#090f1b;color:white;font:24px sans-serif;padding:4rem"><h1>Activate Vert TV</h1><p>R199 once-off</p><form method="POST" action="${host}/eng/process">${[...p].map(([k,v])=>`<input type="hidden" name="${k}" value="${escapeHTML(v)}">`).join('')}<button style="font-size:24px;padding:20px">Continue to secure Payfast checkout</button></form></body></html>`,{headers:{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; form-action ${host}; frame-ancestors 'none'`}});
+ }
+ if(path==='/api/payfast/itn' && request.method==='POST') {
+  const host=payfast(env), raw=await request.text(); if(raw.length>20000) fail(413,'Too large');
+  const p=new URLSearchParams(raw); if(new Set([...p.keys()]).size!==[...p.keys()].length) fail(400,'Duplicate fields');
+  if(!equal(signature(p,env.PAYFAST_PASSPHRASE),p.get('signature')) || p.get('merchant_id')!==env.PAYFAST_MERCHANT_ID) fail(400,'Invalid ITN signature');
+  // Validate source against Payfast DNS using Cloudflare DNS-over-HTTPS.
+  const ip=request.headers.get('CF-Connecting-IP'); let validIP=false;
+  for(const domain of ['www.payfast.co.za','sandbox.payfast.co.za','w1w.payfast.co.za','w2w.payfast.co.za']) {
+   const dns=await fetch(`https://cloudflare-dns.com/dns-query?name=${domain}&type=${ip?.includes(':')?'AAAA':'A'}`,{headers:{accept:'application/dns-json'}});
+   const answer=await dns.json(); if(answer.Answer?.some(a=>a.data===ip)) validIP=true;
+  }
+  if(!validIP) fail(403,'Invalid ITN source');
+  const check=await fetch(host+'/eng/query/validate',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:canonical(p)});
+  if(!check.ok || (await check.text()).trim()!=='VALID') fail(400,'ITN validation failed');
+  const order=await env.DB.prepare('SELECT * FROM orders WHERE id=?').bind(p.get('m_payment_id')).first();
+  if(!order || !/^199\.00$/.test(p.get('amount_gross')||'') || p.get('payment_status')!=='COMPLETE' || !p.get('pf_payment_id')) fail(400,'Payment mismatch');
+  if(order.paid) { if(order.pf_payment_id!==p.get('pf_payment_id')) fail(409,'Payment mismatch'); return new Response('OK'); }
+  await env.DB.batch([env.DB.prepare('UPDATE orders SET paid=1,pf_payment_id=? WHERE id=? AND paid=0').bind(p.get('pf_payment_id'),order.id),env.DB.prepare('UPDATE activations SET active=1 WHERE id=?').bind(order.activation_id)]);
+  return new Response('OK');
+ }
+ if(path==='/api/get_links.json') {
+  await device(request,env,true);
+  const {results}=await env.DB.prepare('SELECT * FROM content WHERE published=1 ORDER BY category,title').all();
+  const items=await Promise.all(results.map(async x=>{
+   if(!x.object_key) return {id:x.id,title:x.title,category:x.category,url:x.url};
+   const access=token(); await env.DB.prepare('INSERT INTO media_tickets(ticket_hash,content_id,expires_at) VALUES(?,?,?)').bind(hash(access),x.id,Date.now()+6*3600000).run();
+   return {id:x.id,title:x.title,category:x.category,url:`${env.PUBLIC_BASE_URL}/watch/${x.id}?ticket=${access}`};
+  })); return json({items});
+ }
+ const media=path.match(/^\/(watch|media)\/([^/]+)$/);
+ if(media) {
+  const ticket=u.searchParams.get('ticket')||'';
+  const record=await env.DB.prepare('SELECT c.* FROM media_tickets t JOIN content c ON c.id=t.content_id WHERE t.ticket_hash=? AND t.content_id=? AND t.expires_at>? AND c.published=1').bind(hash(ticket),media[2],Date.now()).first(); if(!record) fail(403,'Playback link expired. Refresh the TV library.');
+  if(media[1]==='watch') return new Response(`<!doctype html><html><head><meta name="referrer" content="no-referrer"></head><body style="margin:0;background:black"><video style="width:100vw;height:100vh" controls autoplay src="/media/${record.id}?ticket=${encodeURIComponent(ticket)}"></video></body></html>`,{headers:{'Content-Type':'text/html','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; media-src 'self'; style-src 'unsafe-inline'"}});
+  const object=await env.MOVIES.get(record.object_key,{range:request.headers,onlyIf:request.headers}); if(!object) fail(404,'Movie missing');
+  const h=new Headers({'Cache-Control':'private, no-store','Accept-Ranges':'bytes','Referrer-Policy':'no-referrer'}); object.writeHttpMetadata(h); h.set('ETag',object.httpEtag);
+  if(!('body' in object)) return new Response(null,{status:412,headers:h});
+  let status=200;
+  if(object.range && 'offset' in object.range) {status=206;h.set('Content-Range',`bytes ${object.range.offset}-${object.range.offset+object.range.length-1}/${object.size}`);h.set('Content-Length',String(object.range.length));} else h.set('Content-Length',String(object.size));
+  return new Response(request.method==='HEAD'?null:object.body,{status,headers:h});
+ }
+ if(path.startsWith('/payment/')) return new Response('Return to Vert TV. Activation occurs only after verified payment notification.',{headers:{'Content-Type':'text/plain'}});
+ if(path.startsWith('/api/')) fail(404,'Not found');
+ return env.ASSETS.fetch(request);
+}
+export default {
+ async fetch(request,env) { try {return await handle(request,env);} catch(e) {if(!e.status) console.error('Request failed',e.name); return json({error:e.status?e.message:'Service temporarily unavailable'},e.status||500);} },
+ async scheduled(event,env) { await env.DB.batch([env.DB.prepare('DELETE FROM checkout_tickets WHERE expires_at<?').bind(Date.now()),env.DB.prepare('DELETE FROM media_tickets WHERE expires_at<?').bind(Date.now())]); }
+};
