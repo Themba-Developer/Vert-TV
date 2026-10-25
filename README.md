@@ -12,7 +12,7 @@ D1 and private R2 are provisioned and migrations applied. Admin authentication c
 
 ## Status
 
-Android debug APK compiled successfully in GitHub Actions (run 40211654811). Device/emulator playback and Payfast end-to-end verification are still pending. Local Android compilation requires JDK 17 and Android SDK 35. Payfast must be configured and tested in sandbox before accepting payments. No production credentials are checked in. A browser test URL serves the backend/landing page and admin studio; it cannot run a native Android APK.
+Android debug APK compiled successfully in GitHub Actions (run 40211654811). Device/emulator playback and Payfast end-to-end verification are still pending. Local Android compilation requires JDK 17 and Android SDK 35. Payfast live mode is configured at the owner’s request. A real payment and ITN still require end-to-end verification with production credentials. No production credentials are checked in. A browser test URL serves the backend/landing page and admin studio; it cannot run a native Android APK.
 
 ## Android Studio / VS Code
 
@@ -57,13 +57,17 @@ Set Cloudflare rate-limiting rules for `/api/activation/start` and API traffic b
 
 ## Payfast
 
-Enter sandbox credentials in the ignored `backend/.dev.vars` file. After saving, run `node scripts/publish-payfast-secrets.mjs` from the root to transfer the three fields through stdin to Cloudflare Worker secrets without printing their values. Keep `PAYFAST_SANDBOX=true`.
+Enter the credentials for the selected Payfast environment in the ignored `backend/.dev.vars` file. After saving, run `node scripts/publish-payfast-secrets.mjs` from the root to transfer the three fields through stdin to Cloudflare Worker secrets without printing their values. Use `PAYFAST_SANDBOX=false` for production credentials; match the mode in `backend/wrangler.jsonc`.
 
-R199 is a once-off **device activation**, not a recurring subscription. Sandbox is enabled by default. Secrets belong only in Worker secrets or ignored `.dev.vars`. Checkout is a server-signed form, with a separate expiring checkout ticket. The app never sees merchant credentials or passphrase. ITN checks ordered signature, merchant ID, Payfast source DNS/IP, Payfast server validation, exact amount, matching server-created order and COMPLETE status. The payment ID is unique and duplicate notifications are idempotent. Return-page navigation never grants activation.
+R199 is a once-off **device activation**, not a recurring subscription. Live mode is currently enabled at the owner’s request. Secrets belong only in Worker secrets or ignored `.dev.vars`. Checkout is a server-signed form, with a separate expiring checkout ticket. The app never sees merchant credentials or passphrase. ITN checks ordered signature, merchant ID, Payfast source DNS/IP, Payfast server validation, exact amount, matching server-created order and COMPLETE status. The payment ID is unique and duplicate notifications are idempotent. Return-page navigation never grants activation.
 
 A freshly entered email does not restore another device's subscription: that would let anyone claim access by knowing a paid email address. Preserve the stored device token to resume an existing pending checkout/payment. Account recovery or multi-device licensing needs a verified email OTP or device-linking policy before release. Admin authentication uses Cloudflare Access; TV activation uses Cloudflare-hosted device tokens.
 
 Test successful payment, cancellation, delayed ITN, forged/duplicate ITN, incorrect merchant/amount, network loss, app restart and token rejection in sandbox. Then set `PAYFAST_SANDBOX` to `false` and use production secrets. Confirm Payfast's current allowed notification source addresses and validation behavior with your merchant integration during sandbox testing; DNS source verification is intentionally strict.
+
+## Payment-free test account
+
+`vertcorpgroup@gmail.com` is exempt from payment. Enter that email in the latest TV APK, then supply the private `EXEMPT_ACCESS_CODE` from the ignored `backend/.dev.vars` file. Only a hash of that code is stored in Worker secrets. The server issues an active device token without creating a Payfast order. Existing activated devices continue using their tokens. Do not distribute the private code. This exception does not implement paid-email recovery for other users.
 
 ## Admin movie workflow
 
@@ -77,4 +81,4 @@ Brave's actual blocker is the Rust `adblock-rust` engine, not a JavaScript snipp
 
 ## Verification
 
-`cd backend && npm test` runs 16 tests covering signature canonicalization, token hashing, safe URL handling, HTML escaping, successful verified ITN activation, duplicate ITN idempotency and wrong-amount rejection. Worker request tests cover authorization and rejection paths. Use `npx wrangler deploy --dry-run` to validate the Worker bundle. Schema is in `backend/migrations/`. No APK or successful live payment should be claimed until Android build/device and Payfast sandbox tests pass.
+`cd backend && npm test` runs 20 tests covering signature canonicalization, token hashing, safe URL handling, HTML escaping, successful verified ITN activation, duplicate ITN idempotency and wrong-amount rejection. Worker request tests cover authorization and rejection paths. Use `npx wrangler deploy --dry-run` to validate the Worker bundle. Schema is in `backend/migrations/`. No APK or successful live payment should be claimed until Android build/device and Payfast sandbox tests pass.

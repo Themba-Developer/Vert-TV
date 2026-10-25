@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import worker from '../src/worker.js';
+import {hash} from '../src/security.js';
+const env={EXEMPT_EMAIL:'owner@example.com',EXEMPT_CODE_HASH:hash('private-code')};
+const request=body=>new Request('https://vert.example/api/activation/start',{method:'POST',body:JSON.stringify(body)});
+test('exempt email alone does not grant access',async()=>{const r=await worker.fetch(request({email:'owner@example.com'}),env);assert.equal(r.status,200);assert.deepEqual(await r.json(),{requiresActivationCode:true})});
+test('wrong exemption code is rejected',async()=>{const r=await worker.fetch(request({email:'owner@example.com',activationCode:'wrong'}),env);assert.equal(r.status,403)});
+test('private code activates only exempt email without Payfast or an order',async()=>{const inserts=[];const DB={prepare:sql=>({bind:(...args)=>({run:async()=>inserts.push({sql,args})})})};const r=await worker.fetch(request({email:'OWNER@example.com',activationCode:'private-code'}),{...env,DB});assert.equal(r.status,200);const body=await r.json();assert.equal(body.active,true);assert.ok(body.token);assert.equal(inserts.length,1);assert.match(inserts[0].sql,/activations/);assert.notEqual(inserts[0].args[2],body.token)});
+test('another email cannot use exemption code to skip payment',async()=>{const r=await worker.fetch(request({email:'viewer@example.com',activationCode:'private-code'}),env);assert.equal(r.status,503)});

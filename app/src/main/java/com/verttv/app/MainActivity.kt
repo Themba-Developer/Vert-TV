@@ -28,6 +28,7 @@ class MainActivity : FragmentActivity() {
     private fun activation(message: String? = null) {
         setContentView(R.layout.activity_main)
         val email = findViewById<EditText>(R.id.email)
+        val activationCode = findViewById<EditText>(R.id.activation_code)
         email.setText(api.prefs.getString("email", ""))
         if (message != null) findViewById<TextView>(R.id.status).text = message
         findViewById<Button>(R.id.activate).setOnClickListener { button ->
@@ -36,10 +37,18 @@ class MainActivity : FragmentActivity() {
             button.isEnabled = false
             lifecycleScope.launch {
                 try {
-                    val pending = value.equals(api.prefs.getString("email", ""), ignoreCase = true) && api.prefs.contains("token")
-                    val result = if (pending) api.request("/api/activation/checkout", JSONObject()) else api.request("/api/activation/start", JSONObject().put("email", value))
+                    val pending = value.equals(api.prefs.getString("email", ""), ignoreCase = true) && api.prefs.contains("token") && activationCode.visibility != android.view.View.VISIBLE
+                    val result = if (pending) api.request("/api/activation/checkout", JSONObject()) else api.request("/api/activation/start", JSONObject().put("email", value).put("activationCode", activationCode.text.toString()))
+                    if (result.optBoolean("requiresActivationCode")) {
+                        activationCode.visibility = android.view.View.VISIBLE
+                        activationCode.requestFocus()
+                        findViewById<TextView>(R.id.status).text = "Enter your private code for payment-free access."
+                        (button as Button).text = "Activate free access"
+                        return@launch
+                    }
                     if (!pending) api.prefs.edit().putString("email", value).putString("token", result.getString("token")).apply()
-                    startActivity(Intent(this@MainActivity, PayfastActivity::class.java).putExtra("checkout", result.getString("checkoutUrl")))
+                    if (result.optBoolean("active")) verify()
+                    else startActivity(Intent(this@MainActivity, PayfastActivity::class.java).putExtra("checkout", result.getString("checkoutUrl")))
                 } catch (e: Exception) {
                     if(e is ApiException && e.status == 401) api.prefs.edit().remove("token").apply()
                     findViewById<TextView>(R.id.status).text = e.message

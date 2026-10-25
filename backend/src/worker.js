@@ -22,7 +22,7 @@ function originCheck(request) { const origin=request.headers.get('Origin'); if(o
 function payfast(env) { if(!env.PAYFAST_MERCHANT_ID || !env.PAYFAST_MERCHANT_KEY || !env.PAYFAST_PASSPHRASE) fail(503,'Payfast credentials are not configured yet'); return env.PAYFAST_SANDBOX==='true'?'https://sandbox.payfast.co.za':'https://www.payfast.co.za'; }
 async function handle(request,env) {
  const u=new URL(request.url), path=u.pathname;
- if(path==='/api/health') return json({ok:true,service:'Vert TV',paymentsConfigured:!!env.PAYFAST_MERCHANT_ID});
+ if(path==='/api/health') return json({ok:true,service:'Vert TV',paymentsConfigured:!!(env.PAYFAST_MERCHANT_ID && env.PAYFAST_MERCHANT_KEY && env.PAYFAST_PASSPHRASE),paymentMode:env.PAYFAST_SANDBOX==='true'?'sandbox':'live'});
  if(path.startsWith('/api/admin/') || path==='/admin' || path.startsWith('/admin/')) {
   const owner=await admin(request,env); originCheck(request);
   if(path==='/admin' || path==='/admin/') return env.ASSETS.fetch(new Request(new URL('/admin.html',u),request));
@@ -69,8 +69,16 @@ async function handle(request,env) {
  // Never expose the static admin document without Access validation.
  if(path==='/admin.html') fail(404,'Not found');
  if(path==='/api/activation/start' && request.method==='POST') {
-  originCheck(request); payfast(env);
+  originCheck(request);
   const b=await request.json(), email=String(b.email||'').trim().toLowerCase(); if(email.length>254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400,'Valid email required');
+  if(env.EXEMPT_EMAIL && email===env.EXEMPT_EMAIL.toLowerCase()) {
+   if(!b.activationCode) return json({requiresActivationCode:true});
+   if(!env.EXEMPT_CODE_HASH || !equal(hash(String(b.activationCode).trim()),env.EXEMPT_CODE_HASH)) fail(403,'Invalid private activation code');
+   const id=crypto.randomUUID(), secret=token();
+   await env.DB.prepare('INSERT INTO activations(id,email,token_hash,active) VALUES(?,?,?,1)').bind(id,email,hash(secret)).run();
+   return json({token:secret,active:true});
+  }
+  payfast(env);
   const id=crypto.randomUUID(), secret=token(), checkout=token(), order=crypto.randomUUID();
   // A fresh device must pay; knowing an active email does not grant access.
   await env.DB.batch([env.DB.prepare('INSERT INTO activations(id,email,token_hash) VALUES(?,?,?)').bind(id,email,hash(secret)),env.DB.prepare('INSERT INTO orders(id,activation_id) VALUES(?,?)').bind(order,id)]);

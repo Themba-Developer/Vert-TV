@@ -27,7 +27,7 @@
   ],
   "vars": {
     "PUBLIC_BASE_URL": "https://vert-tv.mahlangu843.workers.dev",
-    "PAYFAST_SANDBOX": "true",
+    "PAYFAST_SANDBOX": "false",
     "CF_ACCESS_TEAM_DOMAIN": "cold-sunset-0330.cloudflareaccess.com",
     "CF_ACCESS_AUD": ""
   },
